@@ -1,0 +1,197 @@
+(function () {
+    'use strict';
+
+    var config = window.BTP_ADMIN || {};
+    var apiUrl = config.apiUrl;
+    var adminToken = config.adminToken;
+
+    function showAlert(type, message) {
+        var alert = document.getElementById('btp-alert');
+        if (!alert) {
+            return;
+        }
+        alert.className = 'alert alert-' + type;
+        alert.textContent = message;
+        alert.style.display = 'block';
+    }
+
+    function truncate(text, max) {
+        if (!text || text.length <= max) {
+            return text || '';
+        }
+        return text.substring(0, max) + '…';
+    }
+
+    function apiRequest(action, method, payload) {
+        var url = apiUrl + '&btp_action=' + encodeURIComponent(action);
+        var options = {
+            method: method || 'GET',
+            credentials: 'same-origin',
+            headers: {
+                'Accept': 'application/json',
+                'X-CSRF-Token': adminToken
+            }
+        };
+
+        if (payload) {
+            payload.token = adminToken;
+            options.headers['Content-Type'] = 'application/json';
+            options.body = JSON.stringify(payload);
+        }
+
+        return fetch(url, options).then(function (response) {
+            return response.json();
+        });
+    }
+
+    function renderBanks(banks) {
+        var tbody = document.querySelector('#btp-banks-table tbody');
+        if (!tbody) {
+            return;
+        }
+
+        tbody.innerHTML = '';
+
+        if (!banks.length) {
+            tbody.innerHTML = '<tr><td colspan="6" class="text-center text-muted">No bank accounts configured yet.</td></tr>';
+            return;
+        }
+
+        banks.forEach(function (bank) {
+            var row = document.createElement('tr');
+            row.innerHTML =
+                '<td>' + bank.id + '</td>' +
+                '<td><code>' + bank.gateway_slug + '</code></td>' +
+                '<td>' + bank.display_name + '</td>' +
+                '<td class="btp-account-details" title="' + bank.account_details.replace(/"/g, '&quot;') + '">' +
+                    truncate(bank.account_details, 80) +
+                '</td>' +
+                '<td>' + bank.currency_code + '</td>' +
+                '<td class="text-right btp-actions">' +
+                    '<button type="button" class="btn btn-default btn-sm btp-edit-btn" data-id="' + bank.id + '">Edit</button>' +
+                    '<button type="button" class="btn btn-danger btn-sm btp-delete-btn" data-id="' + bank.id + '">Delete</button>' +
+                '</td>';
+            tbody.appendChild(row);
+        });
+    }
+
+    function loadBanks() {
+        apiRequest('list').then(function (payload) {
+            if (!payload.success) {
+                showAlert('danger', payload.error ? payload.error.message : 'Failed to load banks.');
+                return;
+            }
+            renderBanks((payload.data && payload.data.banks) || []);
+        }).catch(function () {
+            showAlert('danger', 'Failed to load banks.');
+        });
+    }
+
+    function openModal(title) {
+        var modal = document.getElementById('btp-bank-modal');
+        var label = document.getElementById('btp-bank-modal-label');
+        if (label) {
+            label.textContent = title;
+        }
+        if (window.jQuery && modal) {
+            window.jQuery(modal).modal('show');
+        }
+    }
+
+    function resetForm() {
+        var form = document.getElementById('btp-bank-form');
+        if (form) {
+            form.reset();
+        }
+        document.getElementById('btp-bank-id').value = '';
+    }
+
+    function fillForm(bank) {
+        document.getElementById('btp-bank-id').value = bank.id;
+        document.getElementById('btp-bank-name').value = bank.bank_name;
+        document.getElementById('btp-branch-name').value = bank.branch_name;
+        document.getElementById('btp-currency-code').value = bank.currency_code;
+        document.getElementById('btp-account-details').value = bank.account_details;
+    }
+
+    document.addEventListener('DOMContentLoaded', function () {
+        loadBanks();
+
+        var addBtn = document.getElementById('btp-add-bank-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', function () {
+                resetForm();
+                openModal('Add Bank Details');
+            });
+        }
+
+        document.addEventListener('click', function (event) {
+            var target = event.target;
+            if (!target) {
+                return;
+            }
+
+            if (target.classList.contains('btp-edit-btn')) {
+                var editId = target.getAttribute('data-id');
+                fetch(apiUrl + '&btp_action=get&id=' + encodeURIComponent(editId), {
+                    credentials: 'same-origin',
+                    headers: { 'Accept': 'application/json', 'X-CSRF-Token': adminToken }
+                }).then(function (response) { return response.json(); }).then(function (payload) {
+                    if (!payload.success || !payload.data || !payload.data.bank) {
+                        showAlert('danger', 'Unable to load bank details.');
+                        return;
+                    }
+                    fillForm(payload.data.bank);
+                    openModal('Edit Bank Details');
+                });
+            }
+
+            if (target.classList.contains('btp-delete-btn')) {
+                var deleteId = target.getAttribute('data-id');
+                if (!window.confirm('Delete this bank account and deactivate its gateway?')) {
+                    return;
+                }
+                apiRequest('delete', 'POST', { id: parseInt(deleteId, 10) }).then(function (payload) {
+                    if (!payload.success) {
+                        showAlert('danger', payload.error ? payload.error.message : 'Delete failed.');
+                        return;
+                    }
+                    showAlert('success', payload.message || 'Bank deleted.');
+                    loadBanks();
+                });
+            }
+        });
+
+        var form = document.getElementById('btp-bank-form');
+        if (form) {
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+                var id = document.getElementById('btp-bank-id').value;
+                var payload = {
+                    bank_name: document.getElementById('btp-bank-name').value,
+                    branch_name: document.getElementById('btp-branch-name').value,
+                    currency_code: document.getElementById('btp-currency-code').value,
+                    account_details: document.getElementById('btp-account-details').value
+                };
+                var action = id ? 'update' : 'create';
+                if (id) {
+                    payload.id = parseInt(id, 10);
+                }
+
+                apiRequest(action, 'POST', payload).then(function (response) {
+                    if (!response.success) {
+                        showAlert('danger', response.error ? response.error.message : 'Save failed.');
+                        return;
+                    }
+                    showAlert('success', response.message || 'Saved.');
+                    if (window.jQuery) {
+                        window.jQuery('#btp-bank-modal').modal('hide');
+                    }
+                    loadBanks();
+                }).catch(function () {
+                    showAlert('danger', 'Save failed.');
+                });
+            });
+        }
+    });
+})();
