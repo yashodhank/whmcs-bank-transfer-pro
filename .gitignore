@@ -1,0 +1,15 @@
+/vendor/
+/.phpunit.cache/
+/graphify-out/
+
+# Generated gateway modules (runtime artifacts)
+/modules/gateways/banktransferpro_*.php
+
+# Client-uploaded payment proofs
+/modules/addons/banktransferpro/storage/proofs/*
+!/modules/addons/banktransferpro/storage/proofs/.gitkeep
+
+# IDE / OS
+.DS_Store
+.idea/
+*.swp
