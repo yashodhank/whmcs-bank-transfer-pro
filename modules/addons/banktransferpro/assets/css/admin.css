@@ -1,0 +1,33 @@
+.btp-admin-scope .btp-nav-tabs {
+    margin-bottom: 20px;
+}
+
+.btp-admin-scope .btp-dashboard-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 15px;
+}
+
+.btp-admin-scope .btp-dashboard-header h2 {
+    margin: 0;
+}
+
+.btp-admin-scope #btp-banks-table td.btp-account-details {
+    max-width: 280px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.btp-admin-scope .btp-actions .btn {
+    margin-left: 4px;
+}
+
+.btp-admin-scope .btp-settings-form {
+    max-width: 900px;
+}
+
+.btp-admin-scope .modal-body textarea {
+    min-height: 140px;
+}
