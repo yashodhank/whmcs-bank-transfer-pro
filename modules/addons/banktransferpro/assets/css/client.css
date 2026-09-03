@@ -1,0 +1,38 @@
+.btp-bank-details {
+    border: 1px solid #d9e2ec;
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin: 16px 0;
+    background: #f8fafc;
+}
+
+.btp-bank-details__header {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 10px;
+}
+
+.btp-bank-details__body {
+    line-height: 1.6;
+    margin-bottom: 12px;
+}
+
+.btp-bank-details__reference {
+    font-size: 14px;
+}
+
+.btp-payment-proof {
+    border: 1px solid #d9e2ec;
+    border-radius: 6px;
+    padding: 16px 18px;
+    margin-top: 20px;
+    background: #fff;
+}
+
+.btp-payment-proof h4 {
+    margin-top: 0;
+}
+
+.btp-payment-proof__result {
+    margin-top: 12px;
+}
