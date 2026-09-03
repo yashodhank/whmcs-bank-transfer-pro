@@ -1,0 +1,28 @@
+{
+    "name": "whmcs/bank-transfer-pro",
+    "description": "WHMCS addon for multi-currency bank transfer gateways with payment proof upload",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.1"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "BankTransferPro\\": "modules/addons/banktransferpro/lib/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "BankTransferPro\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}
