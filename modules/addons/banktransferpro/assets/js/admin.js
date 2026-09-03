@@ -22,6 +22,15 @@
         return text.substring(0, max) + '…';
     }
 
+    function escapeHtml(value) {
+        return String(value == null ? '' : value)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
     function apiRequest(action, method, payload) {
         var url = apiUrl + '&btp_action=' + encodeURIComponent(action);
         var options = {
@@ -59,17 +68,18 @@
 
         banks.forEach(function (bank) {
             var row = document.createElement('tr');
+            var detailsRaw = String(bank.account_details || '');
             row.innerHTML =
-                '<td>' + bank.id + '</td>' +
-                '<td><code>' + bank.gateway_slug + '</code></td>' +
-                '<td>' + bank.display_name + '</td>' +
-                '<td class="btp-account-details" title="' + bank.account_details.replace(/"/g, '&quot;') + '">' +
-                    truncate(bank.account_details, 80) +
+                '<td>' + escapeHtml(bank.id) + '</td>' +
+                '<td><code>' + escapeHtml(bank.gateway_slug) + '</code></td>' +
+                '<td>' + escapeHtml(bank.display_name) + '</td>' +
+                '<td class="btp-account-details" title="' + escapeHtml(detailsRaw) + '">' +
+                    escapeHtml(truncate(detailsRaw, 80)) +
                 '</td>' +
-                '<td>' + bank.currency_code + '</td>' +
+                '<td>' + escapeHtml(bank.currency_code) + '</td>' +
                 '<td class="text-right btp-actions">' +
-                    '<button type="button" class="btn btn-default btn-sm btp-edit-btn" data-id="' + bank.id + '">Edit</button>' +
-                    '<button type="button" class="btn btn-danger btn-sm btp-delete-btn" data-id="' + bank.id + '">Delete</button>' +
+                    '<button type="button" class="btn btn-default btn-sm btp-edit-btn" data-id="' + escapeHtml(bank.id) + '">Edit</button>' +
+                    '<button type="button" class="btn btn-danger btn-sm btp-delete-btn" data-id="' + escapeHtml(bank.id) + '">Delete</button>' +
                 '</td>';
             tbody.appendChild(row);
         });

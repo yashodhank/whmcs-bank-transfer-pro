@@ -28,14 +28,27 @@ final class TicketFactory
             require_once ROOTDIR . '/includes/api.php';
         }
 
+        $fileContents = file_get_contents($attachmentPath);
+        if ($fileContents === false) {
+            throw new \RuntimeException('Unable to read payment proof attachment for ticket creation.');
+        }
+
+        // WHMCS OpenTicket expects `attachments` as base64(json([{name, data}])),
+        // where each `data` value is itself base64-encoded file bytes.
+        $attachmentsPayload = base64_encode(json_encode([
+            [
+                'name' => $attachmentName,
+                'data' => base64_encode($fileContents),
+            ],
+        ], JSON_THROW_ON_ERROR));
+
         $response = localAPI('OpenTicket', [
             'clientid' => $clientId,
             'deptid' => $this->settings->ticketDepartmentId(),
             'subject' => $subject,
             'message' => $message,
             'priority' => $this->settings->ticketPriority(),
-            'attachment' => base64_encode((string) file_get_contents($attachmentPath)),
-            'attachmentname' => $attachmentName,
+            'attachments' => $attachmentsPayload,
         ]);
 
         if (! is_array($response) || ($response['result'] ?? '') !== 'success') {

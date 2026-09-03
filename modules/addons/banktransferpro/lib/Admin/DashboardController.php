@@ -49,6 +49,12 @@ final class DashboardController
 
     private function saveSettings(): void
     {
+        if (function_exists('check_token') && ! check_token('WHMCS.default', $_POST['token'] ?? null)) {
+            echo '<div class="alert alert-danger">Invalid security token. Settings were not saved.</div>';
+
+            return;
+        }
+
         $settings = new SettingsRepository();
 
         $settings->set('ticket_department_id', (string) max(1, (int) ($_POST['ticket_department_id'] ?? 1)));
