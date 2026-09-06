@@ -78,7 +78,7 @@
 window.BTP_ADMIN = {
     moduleLink: {$modulelink|@json_encode nofilter},
     apiUrl: {$modulelink|cat:"&action=api"|@json_encode nofilter},
-    adminToken: {$adminToken|@json_encode nofilter},
+    csrfToken: {$csrfToken|@json_encode nofilter},
     assetBaseUrl: {$adminAssetBaseUrl|@json_encode nofilter},
     assetVersion: {$assetVersion|@json_encode nofilter}
 };

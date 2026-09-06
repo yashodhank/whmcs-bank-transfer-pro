@@ -3,7 +3,7 @@
 
     var config = window.BTP_ADMIN || {};
     var apiUrl = config.apiUrl;
-    var adminToken = config.adminToken;
+    var csrfToken = config.csrfToken || config.adminToken || '';
 
     function buildRequestError(response, bodyText) {
         var message = 'Request failed.';
@@ -65,12 +65,12 @@
             credentials: 'same-origin',
             headers: {
                 'Accept': 'application/json',
-                'X-CSRF-Token': adminToken
+                'X-CSRF-Token': csrfToken
             }
         };
 
         if (payload) {
-            payload.token = adminToken;
+            payload.token = csrfToken;
             options.headers['Content-Type'] = 'application/json';
             options.body = JSON.stringify(payload);
         }
@@ -151,6 +151,13 @@
         }
     }
 
+    function closeModal() {
+        var modal = document.getElementById('btp-bank-modal');
+        if (window.jQuery && modal) {
+            window.jQuery(modal).modal('hide');
+        }
+    }
+
     function resetForm() {
         var form = document.getElementById('btp-bank-form');
         if (form) {
@@ -193,7 +200,7 @@
                 var editId = target.getAttribute('data-id');
                 fetch(apiUrl + '&btp_action=get&id=' + encodeURIComponent(editId), {
                     credentials: 'same-origin',
-                    headers: { 'Accept': 'application/json', 'X-CSRF-Token': adminToken }
+                    headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrfToken }
                 }).then(function (response) {
                     return response.text().then(function (bodyText) {
                         var payload = null;
@@ -265,13 +272,26 @@
                         return;
                     }
                     showAlert('success', response.message || 'Saved.');
-                    if (window.jQuery) {
-                        window.jQuery('#btp-bank-modal').modal('hide');
-                    }
+                    closeModal();
                     loadBanks();
                 }).catch(function (error) {
                     showAlert('danger', error && error.message ? error.message : 'Save failed.');
                 });
+            });
+        }
+
+        var modal = document.getElementById('btp-bank-modal');
+        if (modal) {
+            modal.addEventListener('click', function (event) {
+                var target = event.target;
+                if (!target) {
+                    return;
+                }
+
+                if (target.matches('[data-dismiss="modal"]') || target.closest('[data-dismiss="modal"]')) {
+                    event.preventDefault();
+                    closeModal();
+                }
             });
         }
     }

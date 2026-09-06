@@ -30,7 +30,6 @@ final class DashboardController
         $smarty->caching = false;
         $smarty->assign('modulelink', $vars['modulelink'] ?? '');
         $smarty->assign('csrfToken', generate_token('plain'));
-        $smarty->assign('adminToken', generate_token('WHMCS.admin.default'));
         $smarty->assign('activeTab', $tab);
         $smarty->assign('currencies', $this->loadCurrencies());
         $smarty->assign('settings', $this->loadSettings());
