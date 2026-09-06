@@ -280,9 +280,16 @@ final class AjaxController
 
     private function assertAdminAccess(): void
     {
-        if (! function_exists('checkAdminLogin') || ! checkAdminLogin()) {
-            JsonResponse::error('UNAUTHORIZED', 'Admin authentication required.', 401);
+        $adminId = (int) ($_SESSION['adminid'] ?? 0);
+        if ($adminId > 0) {
+            return;
         }
+
+        if (function_exists('checkAdminLogin') && checkAdminLogin()) {
+            return;
+        }
+
+        JsonResponse::error('UNAUTHORIZED', 'Admin authentication required.', 401);
     }
 
     private function assertCsrf(): void

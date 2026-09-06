@@ -163,31 +163,41 @@ function btp_render_payment_proof_panel(array $vars): string
     </form>
 </div>
 <script>
-document.addEventListener('DOMContentLoaded', function () {
-    var form = document.querySelector('#btp-payment-proof form');
-    if (!form) { return; }
-    form.addEventListener('submit', function (event) {
-        event.preventDefault();
-        var result = form.querySelector('.btp-payment-proof__result');
-        var data = new FormData(form);
-        fetch(form.action, { method: 'POST', body: data, credentials: 'same-origin' })
-            .then(function (response) { return response.json(); })
-            .then(function (payload) {
-                if (payload.success) {
-                    result.className = 'btp-payment-proof__result alert alert-success';
-                    result.textContent = payload.message || 'Upload successful.';
-                    form.reset();
-                } else {
+(function () {
+    function initPaymentProofForm() {
+        var form = document.querySelector('#btp-payment-proof form');
+        if (!form || form.dataset.btpBound === '1') { return; }
+        form.dataset.btpBound = '1';
+
+        form.addEventListener('submit', function (event) {
+            event.preventDefault();
+            var result = form.querySelector('.btp-payment-proof__result');
+            var data = new FormData(form);
+            fetch(form.action, { method: 'POST', body: data, credentials: 'same-origin' })
+                .then(function (response) { return response.json(); })
+                .then(function (payload) {
+                    if (payload.success) {
+                        result.className = 'btp-payment-proof__result alert alert-success';
+                        result.textContent = payload.message || 'Upload successful.';
+                        form.reset();
+                    } else {
+                        result.className = 'btp-payment-proof__result alert alert-danger';
+                        result.textContent = (payload.error && payload.error.message) ? payload.error.message : 'Upload failed.';
+                    }
+                })
+                .catch(function () {
                     result.className = 'btp-payment-proof__result alert alert-danger';
-                    result.textContent = (payload.error && payload.error.message) ? payload.error.message : 'Upload failed.';
-                }
-            })
-            .catch(function () {
-                result.className = 'btp-payment-proof__result alert alert-danger';
-                result.textContent = 'Upload failed. Please try again.';
-            });
-    });
-});
+                    result.textContent = 'Upload failed. Please try again.';
+                });
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initPaymentProofForm, { once: true });
+    } else {
+        initPaymentProofForm();
+    }
+})();
 </script>
 HTML;
 }
