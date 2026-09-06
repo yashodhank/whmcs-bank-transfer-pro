@@ -224,7 +224,10 @@
                 if (!window.confirm('Delete this bank account and deactivate its gateway?')) {
                     return;
                 }
-                apiRequest('delete', 'POST', { id: parseInt(deleteId, 10) }).then(function (payload) {
+                apiRequest('delete', 'POST', {
+                    id: parseInt(deleteId, 10),
+                    confirm_delete: true
+                }).then(function (payload) {
                     if (!payload.success) {
                         showAlert('danger', payload.error ? payload.error.message : 'Delete failed.');
                         return;

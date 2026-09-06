@@ -53,7 +53,9 @@ final class GatewayFileWriter
     {
         $path = $this->pathResolver->gatewayFilePath($slug);
         if (is_file($path)) {
-            unlink($path);
+            if (! unlink($path) && is_file($path)) {
+                throw new \RuntimeException('Failed to delete gateway file: ' . $path);
+            }
         }
     }
 
