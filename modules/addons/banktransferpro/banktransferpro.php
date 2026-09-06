@@ -8,11 +8,12 @@ if (! defined('WHMCS')) {
 
 use BankTransferPro\Admin\DashboardController;
 use BankTransferPro\Bootstrap;
-use BankTransferPro\Client\UploadController;
 use BankTransferPro\Gateway\GatewayPathResolver;
+use BankTransferPro\Client\UploadController;
 use BankTransferPro\Migration\MigrationRunner;
 use BankTransferPro\Migration\WhmcsCapsuleExecutor;
 use BankTransferPro\Repository\SettingsRepository;
+use BankTransferPro\Support\RuntimeEnvironment;
 
 require_once __DIR__ . '/lib/Bootstrap.php';
 
@@ -41,8 +42,14 @@ function banktransferpro_activate(): array
 
         (new SettingsRepository())->seedDefaults();
 
-        $pathResolver = new GatewayPathResolver();
-        if (! $pathResolver->isGatewaysDirectoryWritable()) {
+        if (RuntimeEnvironment::usesStaticGatewayMode() && ! is_file((new GatewayPathResolver())->gatewayFilePath('banktransferpro'))) {
+            return [
+                'status' => 'error',
+                'description' => 'Activation succeeded, but the static banktransferpro gateway file is missing from modules/gateways.',
+            ];
+        }
+
+        if (! RuntimeEnvironment::usesStaticGatewayMode() && ! (new GatewayPathResolver())->isGatewaysDirectoryWritable()) {
             return [
                 'status' => 'error',
                 'description' => 'Activation succeeded, but modules/gateways is not writable. Bank gateway files cannot be generated until permissions are fixed.',

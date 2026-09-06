@@ -11,15 +11,17 @@
     <ol>
         <li>Copy the repository contents into your WHMCS root directory.</li>
         <li>Run <code>composer install</code> at the WHMCS root (or repository root when deployed as a bundle).</li>
-        <li>Ensure <code>modules/gateways</code> is writable by the web server.</li>
-        <li>Ensure <code>modules/addons/banktransferpro/storage/proofs</code> is writable.</li>
+        <li>Copy <code>modules/gateways/banktransferpro.php</code> into your WHMCS gateway directory for immutable deployments.</li>
+        <li>For mutable lab installs, ensure <code>modules/gateways</code> is writable by the web server.</li>
+        <li>Set <code>BTP_PROOFS_DIR</code> to a writable path for immutable deployments, or ensure <code>modules/addons/banktransferpro/storage/proofs</code> is writable in mutable installs.</li>
         <li>Activate <strong>Bank Transfer Pro</strong> under Setup → Addon Modules.</li>
     </ol>
 
     <h4>Usage</h4>
     <ul>
-        <li>Create bank records from the Dashboard tab. Each record generates an active payment gateway scoped to one currency.</li>
-        <li>Clients see bank account details on invoices when they select the generated gateway.</li>
+        <li>Mutable environments create a dedicated gateway per bank record; immutable deployments use the static <code>banktransferpro</code> gateway and resolve bank details from invoice currency.</li>
+        <li>Immutable deployments support one active bank per currency. Edit the existing bank record to change details.</li>
+        <li>Clients see bank account details on invoices when they select the matching Bank Transfer Pro gateway.</li>
         <li>Clients can upload payment proof from unpaid invoices; the addon opens a support ticket with the attachment.</li>
     </ul>
 

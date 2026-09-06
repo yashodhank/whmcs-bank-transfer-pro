@@ -75,7 +75,7 @@
         <div class="col-sm-9">
             <label class="checkbox-inline">
                 <input type="checkbox" name="auto_select_gateway" value="on" {if $settings.auto_select_gateway == 'on'}checked{/if} />
-                Replace generic banktransfer with the matching Bank Transfer Pro gateway
+                Replace generic banktransfer with the matching Bank Transfer Pro gateway (or the static banktransferpro gateway in immutable deployments)
             </label>
         </div>
     </div>

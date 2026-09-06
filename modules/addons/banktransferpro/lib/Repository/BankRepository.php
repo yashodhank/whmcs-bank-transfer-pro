@@ -125,6 +125,27 @@ final class BankRepository
         return $row ? $this->mapRow($row) : null;
     }
 
+    public function findOtherActiveByCurrencyCode(string $currencyCode, ?int $excludeId = null): ?array
+    {
+        $query = Capsule::table('mod_btp_banks')
+            ->where('currency_code', strtoupper(trim($currencyCode)))
+            ->where('is_active', 1)
+            ->orderBy('id');
+
+        if ($excludeId !== null) {
+            $query->where('id', '!=', $excludeId);
+        }
+
+        $row = $query->first();
+
+        return $row ? $this->mapRow($row) : null;
+    }
+
+    public function countActive(): int
+    {
+        return (int) Capsule::table('mod_btp_banks')->where('is_active', 1)->count();
+    }
+
     public static function buildDisplayName(string $bankName, string $branchName): string
     {
         $parts = ['Bank Transfer Pro', trim($bankName)];

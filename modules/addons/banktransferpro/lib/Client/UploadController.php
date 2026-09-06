@@ -49,7 +49,7 @@ final class UploadController
         }
 
         $gateway = (string) $invoice->paymentmethod;
-        if (! str_starts_with($gateway, 'banktransferpro_')) {
+        if (! $this->isSupportedGateway($gateway)) {
             JsonResponse::error('INVALID_GATEWAY', 'This invoice is not using a Bank Transfer Pro gateway.');
         }
 
@@ -66,7 +66,7 @@ final class UploadController
 
         try {
             $stored = $this->uploader->store($clientId, $_FILES['proof']);
-            $bank = $this->banks->findBySlug($gateway);
+            $bank = $this->resolveBankForInvoice($invoice, $gateway);
 
             $subject = $this->tickets->renderSubject([
                 'invoiceid' => (string) $invoiceId,
@@ -86,7 +86,7 @@ final class UploadController
             $proofId = $this->proofs->create([
                 'invoice_id' => $invoiceId,
                 'client_id' => $clientId,
-                'gateway_slug' => $gateway,
+                'gateway_slug' => $bank['gateway_slug'] ?? $gateway,
                 'stored_filename' => $stored['stored_filename'],
                 'original_filename' => $stored['original_filename'],
                 'mime' => $stored['mime'],
@@ -139,5 +139,29 @@ final class UploadController
         if (function_exists('check_token') && ! check_token('WHMCS.default', $token)) {
             JsonResponse::error('CSRF_FAILED', 'Invalid security token.', 403);
         }
+    }
+
+    private function isSupportedGateway(string $gateway): bool
+    {
+        return $gateway === 'banktransferpro' || str_starts_with($gateway, 'banktransferpro_');
+    }
+
+    private function resolveBankForInvoice(object $invoice, string $gateway): ?array
+    {
+        if ($gateway !== 'banktransferpro') {
+            return $this->banks->findBySlug($gateway);
+        }
+
+        $currencyId = (int) ($invoice->currency ?? 0);
+        if ($currencyId <= 0) {
+            return null;
+        }
+
+        $currency = Capsule::table('tblcurrencies')->where('id', $currencyId)->first(['code']);
+        if ($currency === null) {
+            return null;
+        }
+
+        return $this->banks->findActiveByCurrencyCode((string) $currency->code);
     }
 }

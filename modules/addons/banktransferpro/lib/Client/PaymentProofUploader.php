@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace BankTransferPro\Client;
 
-use BankTransferPro\Bootstrap;
 use BankTransferPro\Repository\ProofRepository;
 use BankTransferPro\Repository\SettingsRepository;
+use BankTransferPro\Support\RuntimeEnvironment;
 
 final class PaymentProofUploader
 {
@@ -65,7 +65,7 @@ final class PaymentProofUploader
 
     public function storageDirectory(int $clientId): string
     {
-        return Bootstrap::addonRoot() . '/storage/proofs/' . $clientId;
+        return RuntimeEnvironment::proofsBaseDirectory() . '/' . $clientId;
     }
 
     private function detectMimeType(string $tmpPath): string
