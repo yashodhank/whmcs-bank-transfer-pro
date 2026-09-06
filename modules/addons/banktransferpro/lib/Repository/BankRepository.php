@@ -146,6 +146,14 @@ final class BankRepository
         return (int) Capsule::table('mod_btp_banks')->where('is_active', 1)->count();
     }
 
+    public function countOtherActive(int $excludeId): int
+    {
+        return (int) Capsule::table('mod_btp_banks')
+            ->where('is_active', 1)
+            ->where('id', '!=', $excludeId)
+            ->count();
+    }
+
     public static function buildDisplayName(string $bankName, string $branchName): string
     {
         $parts = ['Bank Transfer Pro', trim($bankName)];

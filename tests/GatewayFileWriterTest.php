@@ -42,6 +42,18 @@ final class GatewayFileWriterTest extends TestCase
         $this->assertStringContainsString("function {$slug}_link", $content);
         $this->assertStringContainsString('GatewayRenderer::render', $content);
     }
+
+    public function testDeleteRemovesGeneratedGatewayFile(): void
+    {
+        $resolver = new TestGatewayPathResolver($this->tempGatewaysDir);
+        $writer = new GatewayFileWriter($resolver);
+        $slug = 'banktransferpro_delete_me';
+        $path = $writer->write($slug, 'Bank Transfer Pro — Delete Me');
+
+        $writer->delete($slug);
+
+        $this->assertFileDoesNotExist($path);
+    }
 }
 
 final class TestGatewayPathResolver extends GatewayPathResolver

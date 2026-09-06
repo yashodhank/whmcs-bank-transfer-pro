@@ -84,14 +84,17 @@ final class AjaxController
         );
 
         $displayName = BankRepository::buildDisplayName($payload['bank_name'], $payload['branch_name']);
+        $gatewayActivated = false;
 
         try {
             if (RuntimeEnvironment::usesStaticGatewayMode()) {
                 $this->activator->activateStaticGateway();
+                $gatewayActivated = true;
             } else {
                 $this->assertGatewayDirectoryWritable();
                 $this->fileWriter->write($slug, $displayName);
                 $this->activator->activate($slug, $displayName, $payload['currency_code']);
+                $gatewayActivated = true;
             }
 
             $id = $this->bankRepository->create([
@@ -103,9 +106,7 @@ final class AjaxController
                 'display_name' => $displayName,
             ]);
         } catch (\Throwable $e) {
-            if (! RuntimeEnvironment::usesStaticGatewayMode()) {
-                $this->fileWriter->delete($slug ?? '');
-            }
+            $this->cleanupFailedCreate($slug, $gatewayActivated);
             JsonResponse::error('CREATE_FAILED', $e->getMessage(), 500);
         }
 
@@ -173,17 +174,19 @@ final class AjaxController
         }
 
         $slug = (string) $existing['gateway_slug'];
+        $this->assertDeleteConfirmed();
 
         try {
-            $this->bankRepository->delete($id);
             if (RuntimeEnvironment::usesStaticGatewayMode()) {
-                if ($this->bankRepository->countActive() === 0) {
+                if ($this->bankRepository->countOtherActive($id) === 0) {
                     $this->activator->deactivate('banktransferpro');
                 }
             } else {
                 $this->activator->deactivate($slug);
                 $this->fileWriter->delete($slug);
             }
+
+            $this->bankRepository->delete($id);
         } catch (\Throwable $e) {
             JsonResponse::error('DELETE_FAILED', $e->getMessage(), 500);
         }
@@ -262,6 +265,19 @@ final class AjaxController
         );
     }
 
+    private function assertDeleteConfirmed(): void
+    {
+        $input = $this->getRequestJson();
+        $confirmed = $_POST['confirm_delete']
+            ?? (is_array($input) ? ($input['confirm_delete'] ?? false) : false);
+
+        if (filter_var($confirmed, FILTER_VALIDATE_BOOLEAN)) {
+            return;
+        }
+
+        JsonResponse::error('DELETE_CONFIRMATION_REQUIRED', 'Please confirm the delete request and try again.', 400);
+    }
+
     private function assertAdminAccess(): void
     {
         if (! function_exists('checkAdminLogin') || ! checkAdminLogin()) {
@@ -317,5 +333,26 @@ final class AjaxController
         $this->requestJson = is_array($decoded) ? $decoded : null;
 
         return $this->requestJson;
+    }
+
+    private function cleanupFailedCreate(string $slug, bool $gatewayActivated): void
+    {
+        if (RuntimeEnvironment::usesStaticGatewayMode()) {
+            return;
+        }
+
+        if ($gatewayActivated) {
+            try {
+                $this->activator->deactivate($slug);
+            } catch (\Throwable) {
+                // Preserve the original create failure for the API response.
+            }
+        }
+
+        try {
+            $this->fileWriter->delete($slug);
+        } catch (\Throwable) {
+            // Preserve the original create failure for the API response.
+        }
     }
 }

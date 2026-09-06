@@ -23,6 +23,8 @@ final class UploadController
 
     public function handle(): void
     {
+        $stored = null;
+
         if (! $this->settings->isProofUploadEnabled()) {
             JsonResponse::error('FEATURE_DISABLED', 'Payment proof upload is disabled.', 403);
         }
@@ -102,7 +104,27 @@ final class UploadController
         } catch (\InvalidArgumentException $e) {
             JsonResponse::error('VALIDATION_ERROR', $e->getMessage());
         } catch (\Throwable $e) {
+            if (is_array($stored)) {
+                $this->cleanupStoredProof($stored);
+            }
             JsonResponse::error('UPLOAD_FAILED', $e->getMessage(), 500);
+        }
+    }
+
+    /**
+     * @param array{path?: mixed} $stored
+     */
+    private function cleanupStoredProof(array $stored): void
+    {
+        $path = is_string($stored['path'] ?? null) ? $stored['path'] : '';
+        if ($path === '') {
+            return;
+        }
+
+        try {
+            $this->uploader->deleteStoredFile($path);
+        } catch (\Throwable) {
+            // Preserve the original upload or ticket error for the client response.
         }
     }
 

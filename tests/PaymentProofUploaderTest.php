@@ -77,6 +77,19 @@ final class PaymentProofUploaderTest extends TestCase
 
         $this->assertSame('/var/www/storage/banktransferpro/proofs/7', $uploader->storageDirectory(7));
     }
+
+    public function testDeleteStoredFileRemovesSavedProof(): void
+    {
+        $uploader = new PaymentProofUploader(new TestSettingsRepository(maxBytes: 1024, allowedMime: ['image/png']));
+
+        $tmp = tempnam(sys_get_temp_dir(), 'btp-proof-');
+        $this->assertIsString($tmp);
+        file_put_contents($tmp, 'proof');
+
+        $uploader->deleteStoredFile($tmp);
+
+        $this->assertFileDoesNotExist($tmp);
+    }
 }
 
 final class TestSettingsRepository extends SettingsRepository

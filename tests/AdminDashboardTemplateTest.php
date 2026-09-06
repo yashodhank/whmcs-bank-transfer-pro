@@ -8,6 +8,14 @@ use PHPUnit\Framework\TestCase;
 
 final class AdminDashboardTemplateTest extends TestCase
 {
+    public function testDeleteRequestsCarryExplicitConfirmationFlag(): void
+    {
+        $script = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/assets/js/admin.js');
+
+        $this->assertIsString($script);
+        $this->assertStringContainsString('confirm_delete: true', $script);
+    }
+
     public function testAdminScriptPathDoesNotUrlEncodeAssetBase(): void
     {
         $template = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/templates/admin/dashboard.tpl');

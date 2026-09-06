@@ -63,6 +63,13 @@ final class PaymentProofUploader
         return $this->proofs->hasRecentProof($invoiceId, $this->settings->uploadCooldownHours());
     }
 
+    public function deleteStoredFile(string $path): void
+    {
+        if ($path !== '' && is_file($path) && ! unlink($path) && is_file($path)) {
+            throw new \RuntimeException('Unable to remove stored payment proof.');
+        }
+    }
+
     public function storageDirectory(int $clientId): string
     {
         return RuntimeEnvironment::proofsBaseDirectory() . '/' . $clientId;
