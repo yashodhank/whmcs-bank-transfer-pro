@@ -15,20 +15,19 @@ require_once __DIR__ . '/lib/Bootstrap.php';
 use BankTransferPro\Bootstrap;
 use BankTransferPro\Repository\BankRepository;
 use BankTransferPro\Repository\SettingsRepository;
-use BankTransferPro\Support\AssetUrl;
 use BankTransferPro\Support\RuntimeEnvironment;
 use WHMCS\Database\Capsule;
 
 function btp_stylesheet_link_tag(): string
 {
-    $href = AssetUrl::admin('css/admin.css') . '?v=' . urlencode(BTP_ADDON_ASSET_VERSION);
+    $href = '../modules/addons/banktransferpro/assets/css/admin.css?v=' . urlencode(BTP_ADDON_ASSET_VERSION);
 
     return '<link rel="stylesheet" href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" />' . "\n";
 }
 
 function btp_client_stylesheet_link_tag(): string
 {
-    $href = AssetUrl::client('css/client.css') . '?v=' . urlencode(BTP_ADDON_ASSET_VERSION);
+    $href = 'modules/addons/banktransferpro/assets/css/client.css?v=' . urlencode(BTP_ADDON_ASSET_VERSION);
 
     return '<link rel="stylesheet" href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" />' . "\n";
 }
