@@ -1,6 +1,7 @@
 /vendor/
 /.phpunit.cache/
 /graphify-out/
+/dist/
 
 # Generated gateway modules (runtime artifacts)
 /modules/gateways/banktransferpro_*.php

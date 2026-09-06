@@ -54,6 +54,35 @@ Primary shipping references:
 5. In WHMCS admin, go to **Setup → Addon Modules**, activate **Bank Transfer Pro**, and grant admin access.
 6. Open the addon dashboard and add your first bank account.
 
+## Automation helpers
+
+The repo now includes two small install/deploy helpers:
+
+- `composer package:immutable` creates a production-style bundle in `dist/` with the addon, static gateway, docs, and manifests needed for immutable installs.
+- `composer validate:install -- /path/to/whmcs` checks the installed file layout and the mode-specific prerequisites.
+
+Examples:
+
+```bash
+composer package:immutable
+BTP_INSTALL_MODE=immutable BTP_PROOFS_DIR=/var/www/storage/banktransferpro/proofs composer validate:install -- /var/www/html
+BTP_INSTALL_MODE=mutable composer validate:install -- /var/www/html
+```
+
+### What can be automated today
+
+- Packaging a self-contained immutable bundle from this repo
+- Verifying that the addon files and static gateway landed in the expected WHMCS paths
+- Checking mutable permission requirements for `modules/gateways` and addon storage
+- Checking immutable proof-storage readiness for `BTP_PROOFS_DIR` or the default `/var/www/storage/banktransferpro/proofs`
+
+### What still stays manual
+
+- Copying or deploying the artifact into a specific WHMCS host or image, because each environment owns its own release path and permissions
+- Running `composer install` when the target host policy expects a root Composer refresh
+- Setting env vars such as `WHMCS_MUTABLE_APP` and `BTP_PROOFS_DIR`
+- Activating the addon in WHMCS admin and granting access, because that is an authenticated UI action with application-side effects
+
 ## Usage
 
 ### Admin
@@ -75,6 +104,8 @@ vendor/bin/phpunit
 ```
 
 Mutable-runtime generated gateway files are runtime artifacts and are gitignored. Immutable deployments should ship the static `modules/gateways/banktransferpro.php` gateway file instead of creating gateways at runtime.
+
+The module no longer depends on the host WHMCS Composer autoloader to discover `BankTransferPro\\` classes. The addon registers its own PSR-4 fallback at runtime, so install validation can distinguish "autoload is optional here" from genuine missing files.
 
 Production hosts should treat this repo as a self-contained artifact. Avoid Bank Transfer Pro source edits in `whmcs-prod-new`; change this repo, cut a new artifact, and redeploy instead.
 

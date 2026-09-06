@@ -73,6 +73,6 @@ final class Bootstrap
 
     public static function whmcsRoot(): string
     {
-        return dirname(__DIR__, 3);
+        return dirname(__DIR__, 4);
     }
 }

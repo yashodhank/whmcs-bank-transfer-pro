@@ -23,6 +23,8 @@
         "sort-packages": true
     },
     "scripts": {
-        "test": "phpunit"
+        "test": "phpunit",
+        "package:immutable": "bash scripts/package-immutable-bundle.sh",
+        "validate:install": "bash scripts/validate-install.sh"
     }
 }
