@@ -2,6 +2,11 @@
 
 Open-source WHMCS addon that manages multi-currency bank transfer payment gateways, displays bank details on invoices, and lets clients upload payment proof screenshots that automatically open support tickets.
 
+Primary shipping references:
+
+- `docs/adr/0001-independent-shipping-model.md`
+- `docs/release-bundle-contract.md`
+
 ## Features
 
 - **Admin CRUD dashboard** for bank accounts with modal add/edit UI
@@ -41,8 +46,9 @@ Open-source WHMCS addon that manages multi-currency bank transfer payment gatewa
    chmod 775 modules/gateways
    chmod -R 775 modules/addons/banktransferpro/storage
    ```
-4. For immutable installs, configure a writable proof path before activation:
+4. For immutable installs, configure the production contract before activation:
    ```bash
+   export WHMCS_MUTABLE_APP=false
    export BTP_PROOFS_DIR=/var/www/storage/banktransferpro/proofs
    ```
 5. In WHMCS admin, go to **Setup → Addon Modules**, activate **Bank Transfer Pro**, and grant admin access.
@@ -69,6 +75,8 @@ vendor/bin/phpunit
 ```
 
 Mutable-runtime generated gateway files are runtime artifacts and are gitignored. Immutable deployments should ship the static `modules/gateways/banktransferpro.php` gateway file instead of creating gateways at runtime.
+
+Production hosts should treat this repo as a self-contained artifact. Avoid Bank Transfer Pro source edits in `whmcs-prod-new`; change this repo, cut a new artifact, and redeploy instead.
 
 ## Architecture
 
