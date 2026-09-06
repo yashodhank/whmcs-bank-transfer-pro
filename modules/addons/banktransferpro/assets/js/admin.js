@@ -167,7 +167,12 @@
         document.getElementById('btp-account-details').value = bank.account_details;
     }
 
-    document.addEventListener('DOMContentLoaded', function () {
+    function initAdminPage() {
+        if (initAdminPage.initialized) {
+            return;
+        }
+        initAdminPage.initialized = true;
+
         loadBanks();
 
         var addBtn = document.getElementById('btp-add-bank-btn');
@@ -269,5 +274,11 @@
                 });
             });
         }
-    });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initAdminPage, { once: true });
+    } else {
+        initAdminPage();
+    }
 })();
