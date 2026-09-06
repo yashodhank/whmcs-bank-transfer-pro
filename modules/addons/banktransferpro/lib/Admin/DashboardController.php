@@ -6,6 +6,7 @@ namespace BankTransferPro\Admin;
 
 use BankTransferPro\Bootstrap;
 use BankTransferPro\Repository\SettingsRepository;
+use BankTransferPro\Support\AssetUrl;
 use WHMCS\Database\Capsule;
 use WHMCS\Smarty;
 
@@ -34,6 +35,7 @@ final class DashboardController
         $smarty->assign('currencies', $this->loadCurrencies());
         $smarty->assign('settings', $this->loadSettings());
         $smarty->assign('departments', $this->loadDepartments());
+        $smarty->assign('adminAssetBaseUrl', AssetUrl::admin());
         $smarty->assign('assetVersion', $vars['version'] ?? '1.0.0');
 
         $template = match ($tab) {
