@@ -83,4 +83,4 @@ window.BTP_ADMIN = {
     assetVersion: {$assetVersion|@json_encode nofilter}
 };
 </script>
-<script src="{$adminAssetBaseUrl|escape:'url'}/js/admin.js?v={$assetVersion|escape:'url'}"></script>
+<script src="{$adminAssetBaseUrl|escape:'html'}/js/admin.js?v={$assetVersion|escape:'url'}"></script>
