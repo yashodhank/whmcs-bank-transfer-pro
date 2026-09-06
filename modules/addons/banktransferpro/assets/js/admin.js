@@ -5,6 +5,33 @@
     var apiUrl = config.apiUrl;
     var adminToken = config.adminToken;
 
+    function buildRequestError(response, bodyText) {
+        var message = 'Request failed.';
+        var payload = null;
+
+        if (bodyText) {
+            try {
+                payload = JSON.parse(bodyText);
+            } catch (error) {
+                payload = null;
+            }
+        }
+
+        if (payload && payload.error && payload.error.message) {
+            message = payload.error.message;
+        } else if (response && !response.ok) {
+            message = 'Unexpected server response (HTTP ' + response.status + ').';
+        } else if (bodyText) {
+            message = 'Unexpected non-JSON response: ' + bodyText.substring(0, 160);
+        }
+
+        var requestError = new Error(message);
+        requestError.payload = payload;
+        requestError.status = response ? response.status : 0;
+
+        return requestError;
+    }
+
     function showAlert(type, message) {
         var alert = document.getElementById('btp-alert');
         if (!alert) {
@@ -49,7 +76,23 @@
         }
 
         return fetch(url, options).then(function (response) {
-            return response.json();
+            return response.text().then(function (bodyText) {
+                var payload = null;
+
+                if (bodyText) {
+                    try {
+                        payload = JSON.parse(bodyText);
+                    } catch (error) {
+                        payload = null;
+                    }
+                }
+
+                if (payload && typeof payload.success === 'boolean') {
+                    return payload;
+                }
+
+                throw buildRequestError(response, bodyText);
+            });
         });
     }
 
@@ -146,13 +189,33 @@
                 fetch(apiUrl + '&btp_action=get&id=' + encodeURIComponent(editId), {
                     credentials: 'same-origin',
                     headers: { 'Accept': 'application/json', 'X-CSRF-Token': adminToken }
-                }).then(function (response) { return response.json(); }).then(function (payload) {
+                }).then(function (response) {
+                    return response.text().then(function (bodyText) {
+                        var payload = null;
+
+                        if (bodyText) {
+                            try {
+                                payload = JSON.parse(bodyText);
+                            } catch (error) {
+                                payload = null;
+                            }
+                        }
+
+                        if (payload && typeof payload.success === 'boolean') {
+                            return payload;
+                        }
+
+                        throw buildRequestError(response, bodyText);
+                    });
+                }).then(function (payload) {
                     if (!payload.success || !payload.data || !payload.data.bank) {
                         showAlert('danger', 'Unable to load bank details.');
                         return;
                     }
                     fillForm(payload.data.bank);
                     openModal('Edit Bank Details');
+                }).catch(function (error) {
+                    showAlert('danger', error && error.message ? error.message : 'Unable to load bank details.');
                 });
             }
 
@@ -198,8 +261,8 @@
                         window.jQuery('#btp-bank-modal').modal('hide');
                     }
                     loadBanks();
-                }).catch(function () {
-                    showAlert('danger', 'Save failed.');
+                }).catch(function (error) {
+                    showAlert('danger', error && error.message ? error.message : 'Save failed.');
                 });
             });
         }
