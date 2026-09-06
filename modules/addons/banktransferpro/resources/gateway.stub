@@ -36,7 +36,7 @@ function {{SLUG}}_config(): array
             'Type' => 'textarea',
             'Rows' => '5',
             'Value' => 'Bank details are managed in the Bank Transfer Pro addon.',
-            'Description' => 'Legacy WHMCS setting — bank details are loaded from the addon database.',
+            'Description' => 'Legacy WHMCS setting - bank details are loaded from the addon database.',
         ],
     ];
 }

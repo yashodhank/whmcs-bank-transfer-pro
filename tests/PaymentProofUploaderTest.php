@@ -10,6 +10,12 @@ use PHPUnit\Framework\TestCase;
 
 final class PaymentProofUploaderTest extends TestCase
 {
+    protected function tearDown(): void
+    {
+        putenv('WHMCS_MUTABLE_APP');
+        putenv('BTP_PROOFS_DIR');
+    }
+
     public function testRejectsOversizedUpload(): void
     {
         $settings = new TestSettingsRepository(maxBytes: 1024, allowedMime: ['image/png']);
@@ -52,6 +58,24 @@ final class PaymentProofUploaderTest extends TestCase
         } finally {
             @unlink($tmp);
         }
+    }
+
+    public function testUsesConfiguredProofsDirectoryOverride(): void
+    {
+        putenv('BTP_PROOFS_DIR=/srv/btp-proofs');
+
+        $uploader = new PaymentProofUploader(new TestSettingsRepository(maxBytes: 1024, allowedMime: ['image/png']));
+
+        $this->assertSame('/srv/btp-proofs/42', $uploader->storageDirectory(42));
+    }
+
+    public function testUsesImmutableDefaultProofsDirectoryWhenAppIsReadOnly(): void
+    {
+        putenv('WHMCS_MUTABLE_APP=false');
+
+        $uploader = new PaymentProofUploader(new TestSettingsRepository(maxBytes: 1024, allowedMime: ['image/png']));
+
+        $this->assertSame('/var/www/storage/banktransferpro/proofs/7', $uploader->storageDirectory(7));
     }
 }
 

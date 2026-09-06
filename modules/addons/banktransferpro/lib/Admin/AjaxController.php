@@ -9,6 +9,7 @@ use BankTransferPro\Gateway\GatewayFileWriter;
 use BankTransferPro\Gateway\GatewayPathResolver;
 use BankTransferPro\Gateway\SlugGenerator;
 use BankTransferPro\Repository\BankRepository;
+use BankTransferPro\Support\RuntimeEnvironment;
 use WHMCS\Database\Capsule;
 
 final class AjaxController
@@ -29,13 +30,6 @@ final class AjaxController
     {
         $this->assertAdminAccess();
         $this->assertCsrf();
-
-        if (! $this->pathResolver->isGatewaysDirectoryWritable()) {
-            JsonResponse::error(
-                'GATEWAY_DIR_NOT_WRITABLE',
-                'The modules/gateways directory is not writable. Check filesystem permissions.'
-            );
-        }
 
         $action = (string) ($_REQUEST['btp_action'] ?? $_REQUEST['action'] ?? 'list');
 
@@ -69,6 +63,7 @@ final class AjaxController
     private function createBank(): never
     {
         $payload = $this->validatedPayload();
+        $this->assertCurrencySupportedForCurrentRuntime($payload['currency_code']);
 
         if ($this->bankRepository->duplicateExists(
             $payload['bank_name'],
@@ -91,8 +86,13 @@ final class AjaxController
         $displayName = BankRepository::buildDisplayName($payload['bank_name'], $payload['branch_name']);
 
         try {
-            $this->fileWriter->write($slug, $displayName);
-            $this->activator->activate($slug, $displayName, $payload['currency_code']);
+            if (RuntimeEnvironment::usesStaticGatewayMode()) {
+                $this->activator->activateStaticGateway();
+            } else {
+                $this->assertGatewayDirectoryWritable();
+                $this->fileWriter->write($slug, $displayName);
+                $this->activator->activate($slug, $displayName, $payload['currency_code']);
+            }
 
             $id = $this->bankRepository->create([
                 'gateway_slug' => $slug,
@@ -103,7 +103,9 @@ final class AjaxController
                 'display_name' => $displayName,
             ]);
         } catch (\Throwable $e) {
-            $this->fileWriter->delete($slug ?? '');
+            if (! RuntimeEnvironment::usesStaticGatewayMode()) {
+                $this->fileWriter->delete($slug ?? '');
+            }
             JsonResponse::error('CREATE_FAILED', $e->getMessage(), 500);
         }
 
@@ -121,6 +123,7 @@ final class AjaxController
         }
 
         $payload = $this->validatedPayload();
+        $this->assertCurrencySupportedForCurrentRuntime($payload['currency_code'], $id);
 
         if ($this->bankRepository->duplicateExists(
             $payload['bank_name'],
@@ -138,8 +141,13 @@ final class AjaxController
         $displayName = BankRepository::buildDisplayName($payload['bank_name'], $payload['branch_name']);
 
         try {
-            $this->fileWriter->write($slug, $displayName);
-            $this->activator->updateSettings($slug, $displayName, $payload['currency_code']);
+            if (RuntimeEnvironment::usesStaticGatewayMode()) {
+                $this->activator->activateStaticGateway();
+            } else {
+                $this->assertGatewayDirectoryWritable();
+                $this->fileWriter->write($slug, $displayName);
+                $this->activator->updateSettings($slug, $displayName, $payload['currency_code']);
+            }
 
             $this->bankRepository->update($id, [
                 'bank_name' => $payload['bank_name'],
@@ -167,9 +175,15 @@ final class AjaxController
         $slug = (string) $existing['gateway_slug'];
 
         try {
-            $this->activator->deactivate($slug);
-            $this->fileWriter->delete($slug);
             $this->bankRepository->delete($id);
+            if (RuntimeEnvironment::usesStaticGatewayMode()) {
+                if ($this->bankRepository->countActive() === 0) {
+                    $this->activator->deactivate('banktransferpro');
+                }
+            } else {
+                $this->activator->deactivate($slug);
+                $this->fileWriter->delete($slug);
+            }
         } catch (\Throwable $e) {
             JsonResponse::error('DELETE_FAILED', $e->getMessage(), 500);
         }
@@ -219,6 +233,33 @@ final class AjaxController
     private function currencyExists(string $currencyCode): bool
     {
         return Capsule::table('tblcurrencies')->where('code', $currencyCode)->exists();
+    }
+
+    private function assertCurrencySupportedForCurrentRuntime(string $currencyCode, ?int $excludeId = null): void
+    {
+        if (! RuntimeEnvironment::usesStaticGatewayMode()) {
+            return;
+        }
+
+        $existing = $this->bankRepository->findOtherActiveByCurrencyCode($currencyCode, $excludeId);
+        if ($existing !== null) {
+            JsonResponse::error(
+                'CURRENCY_ALREADY_CONFIGURED',
+                'Immutable deployments support one active bank per currency. Edit the existing bank for this currency instead.'
+            );
+        }
+    }
+
+    private function assertGatewayDirectoryWritable(): void
+    {
+        if ($this->pathResolver->isGatewaysDirectoryWritable()) {
+            return;
+        }
+
+        JsonResponse::error(
+            'GATEWAY_DIR_NOT_WRITABLE',
+            'The modules/gateways directory is not writable. Check filesystem permissions.'
+        );
     }
 
     private function assertAdminAccess(): void

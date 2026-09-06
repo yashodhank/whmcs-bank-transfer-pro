@@ -15,6 +15,7 @@ require_once __DIR__ . '/lib/Bootstrap.php';
 use BankTransferPro\Bootstrap;
 use BankTransferPro\Repository\BankRepository;
 use BankTransferPro\Repository\SettingsRepository;
+use BankTransferPro\Support\RuntimeEnvironment;
 use WHMCS\Database\Capsule;
 
 function btp_stylesheet_link_tag(): string
@@ -67,7 +68,7 @@ add_hook('ClientAreaPageViewInvoice', 1, static function (array $vars): array {
     }
 
     $gateway = (string) $invoice->paymentmethod;
-    if (! str_starts_with($gateway, 'banktransferpro_')) {
+    if (! btp_is_supported_gateway($gateway)) {
         return $vars;
     }
 
@@ -109,7 +110,9 @@ add_hook('InvoiceCreation', 1, static function (array $vars): array {
         return $vars;
     }
 
-    $vars['paymentmethod'] = $bank['gateway_slug'];
+    $vars['paymentmethod'] = RuntimeEnvironment::usesStaticGatewayMode()
+        ? 'banktransferpro'
+        : $bank['gateway_slug'];
 
     return $vars;
 });
@@ -187,4 +190,9 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 HTML;
+}
+
+function btp_is_supported_gateway(string $gateway): bool
+{
+    return $gateway === 'banktransferpro' || str_starts_with($gateway, 'banktransferpro_');
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BankTransferPro\Gateway;
 
 use BankTransferPro\Repository\BankRepository;
+use WHMCS\Database\Capsule;
 
 final class GatewayRenderer
 {
@@ -17,6 +18,9 @@ final class GatewayRenderer
 
         $repo = new BankRepository();
         $bank = $repo->findBySlug($gatewaySlug);
+        if ($bank === null && $gatewaySlug === 'banktransferpro') {
+            $bank = self::findByInvoiceCurrency($repo, $params);
+        }
 
         if ($bank === null) {
             return '<p class="btp-bank-details btp-bank-details--missing">Bank details are temporarily unavailable.</p>';
@@ -41,5 +45,33 @@ final class GatewayRenderer
     <div class="btp-bank-details__reference"><strong>{$refLabel}:</strong> {$invoiceRef}</div>
 </div>
 HTML;
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     */
+    private static function findByInvoiceCurrency(BankRepository $repo, array $params): ?array
+    {
+        $invoiceId = (int) ($params['invoiceid'] ?? 0);
+        if ($invoiceId <= 0) {
+            return null;
+        }
+
+        $invoice = Capsule::table('tblinvoices')->where('id', $invoiceId)->first(['currency']);
+        if ($invoice === null) {
+            return null;
+        }
+
+        $currencyId = (int) ($invoice->currency ?? 0);
+        if ($currencyId <= 0) {
+            return null;
+        }
+
+        $currency = Capsule::table('tblcurrencies')->where('id', $currencyId)->first(['code']);
+        if ($currency === null) {
+            return null;
+        }
+
+        return $repo->findActiveByCurrencyCode((string) $currency->code);
     }
 }

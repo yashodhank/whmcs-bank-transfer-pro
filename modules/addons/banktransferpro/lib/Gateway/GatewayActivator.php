@@ -9,6 +9,27 @@ use WHMCS\Module\Gateway;
 
 final class GatewayActivator
 {
+    public function activateStaticGateway(): void
+    {
+        $slug = 'banktransferpro';
+        $gateway = Gateway::factory($slug);
+        if (! $gateway->load($slug)) {
+            throw new \RuntimeException('Gateway module file could not be loaded: ' . $slug);
+        }
+
+        if (! $gateway->isActiveGateway($slug)) {
+            $gateway->activate();
+        }
+
+        $this->saveSetting($slug, 'name', 'Bank Transfer Pro');
+        $this->saveSetting($slug, 'type', Gateway::GATEWAY_BANK);
+        $this->saveSetting($slug, 'visible', 'on');
+        Capsule::table('tblpaymentgateways')
+            ->where('gateway', $slug)
+            ->where('setting', 'convertto')
+            ->delete();
+    }
+
     public function activate(string $slug, string $displayName, string $currencyCode): void
     {
         $gateway = Gateway::factory($slug);

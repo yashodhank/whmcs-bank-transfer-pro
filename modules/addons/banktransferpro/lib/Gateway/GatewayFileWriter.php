@@ -15,7 +15,7 @@ final class GatewayFileWriter
 
     public function write(string $slug, string $displayName): string
     {
-        $stubPath = Bootstrap::addonRoot() . '/resources/gateway.stub.php';
+        $stubPath = Bootstrap::addonRoot() . '/resources/gateway.stub';
         if (! is_file($stubPath)) {
             throw new \RuntimeException('Gateway stub template missing.');
         }
