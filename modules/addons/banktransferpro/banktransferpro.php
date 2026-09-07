@@ -22,7 +22,7 @@ function banktransferpro_config(): array
     return [
         'name' => 'Bank Transfer Pro',
         'description' => 'Multi-currency bank transfer gateways with auto-generated payment modules, invoice bank details, and client payment proof upload.',
-        'version' => '1.1.0',
+        'version' => '1.1.1',
         'author' => 'Securiace Technologies',
         'language' => 'english',
         'fields' => [],
