@@ -12,6 +12,8 @@ use WHMCS\Smarty;
 
 final class DashboardController
 {
+    private string $settingsError = '';
+
     public function handle(array $vars): void
     {
         $tab = (string) ($_GET['tab'] ?? 'dashboard');
@@ -23,7 +25,7 @@ final class DashboardController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tab === 'info') {
-            $this->saveSettings();
+            $this->saveSettings($vars);
         }
 
         $smarty = new Smarty();
@@ -36,6 +38,9 @@ final class DashboardController
         $smarty->assign('departments', $this->loadDepartments());
         $smarty->assign('adminAssetBaseUrl', AssetUrl::admin());
         $smarty->assign('assetVersion', defined('BTP_ADDON_ASSET_VERSION') ? BTP_ADDON_ASSET_VERSION : ($vars['version'] ?? '1.0.0'));
+        $smarty->assign('_lang', is_array($vars['_lang'] ?? null) ? $vars['_lang'] : []);
+        $smarty->assign('settingsSaved', isset($_GET['saved']));
+        $smarty->assign('settingsError', $this->settingsError);
 
         $template = match ($tab) {
             'info' => 'info',
@@ -43,15 +48,29 @@ final class DashboardController
             default => 'dashboard',
         };
 
+        $templateDir = Bootstrap::addonRoot() . '/templates/admin';
+        if (method_exists($smarty, 'setTemplateDir')) {
+            $smarty->setTemplateDir($templateDir);
+        }
+
         echo '<div class="btp-admin-scope">';
-        $smarty->display(Bootstrap::addonRoot() . '/templates/admin/' . $template . '.tpl');
+        $smarty->display($templateDir . '/' . $template . '.tpl');
         echo '</div>';
     }
 
-    private function saveSettings(): void
+    private function saveSettings(array $vars): void
     {
-        if (function_exists('check_token') && ! check_token('WHMCS.default', $_POST['token'] ?? null)) {
-            echo '<div class="alert alert-danger">Invalid security token. Settings were not saved.</div>';
+        $valid = true;
+        if (function_exists('check_token')) {
+            try {
+                $valid = (bool) check_token('WHMCS.admin.default', $_POST['token'] ?? null);
+            } catch (\Throwable) {
+                $valid = false;
+            }
+        }
+
+        if (! $valid) {
+            $this->settingsError = 'Invalid security token. Settings were not saved.';
 
             return;
         }
@@ -67,7 +86,10 @@ final class DashboardController
         $settings->set('upload_cooldown_hours', (string) max(0, (int) ($_POST['upload_cooldown_hours'] ?? 24)));
         $settings->set('auto_select_gateway', isset($_POST['auto_select_gateway']) ? 'on' : '');
 
-        echo '<div class="alert alert-success">Settings saved.</div>';
+        $modulelink = (string) ($vars['modulelink'] ?? '');
+        $separator = str_contains($modulelink, '?') ? '&' : '?';
+        header('Location: ' . $modulelink . $separator . 'tab=info&saved=1');
+        exit;
     }
 
     /**

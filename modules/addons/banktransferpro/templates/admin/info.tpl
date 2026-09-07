@@ -1,10 +1,13 @@
-<ul class="nav nav-tabs btp-nav-tabs">
-    <li><a href="{$modulelink}&tab=dashboard">Dashboard</a></li>
-    <li class="active"><a href="{$modulelink}&tab=info">Info</a></li>
-    <li><a href="{$modulelink}&tab=documentation">Documentation</a></li>
-</ul>
+{include file="tabs.tpl"}
 
-<h2>Settings</h2>
+<h2>{$_lang.settings|default:'Settings'}</h2>
+
+{if $settingsError}
+    <div class="alert alert-danger">{$settingsError|escape}</div>
+{/if}
+{if $settingsSaved}
+    <div class="alert alert-success">{$_lang.settings_saved|default:'Settings saved.'}</div>
+{/if}
 
 <form method="post" action="{$modulelink}&tab=info" class="form-horizontal btp-settings-form">
     <input type="hidden" name="token" value="{$csrfToken}" />
