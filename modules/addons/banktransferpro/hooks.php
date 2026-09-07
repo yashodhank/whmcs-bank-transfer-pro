@@ -7,7 +7,7 @@ if (! defined('WHMCS')) {
 }
 
 if (! defined('BTP_ADDON_ASSET_VERSION')) {
-    define('BTP_ADDON_ASSET_VERSION', '1.1.0');
+    define('BTP_ADDON_ASSET_VERSION', '1.1.1');
 }
 
 require_once __DIR__ . '/lib/Bootstrap.php';

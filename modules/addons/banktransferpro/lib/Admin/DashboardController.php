@@ -35,7 +35,7 @@ final class DashboardController
         $smarty->assign('settings', $this->loadSettings());
         $smarty->assign('departments', $this->loadDepartments());
         $smarty->assign('adminAssetBaseUrl', AssetUrl::admin());
-        $smarty->assign('assetVersion', $vars['version'] ?? '1.0.0');
+        $smarty->assign('assetVersion', defined('BTP_ADDON_ASSET_VERSION') ? BTP_ADDON_ASSET_VERSION : ($vars['version'] ?? '1.0.0'));
 
         $template = match ($tab) {
             'info' => 'info',
