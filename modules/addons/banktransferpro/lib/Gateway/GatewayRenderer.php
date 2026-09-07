@@ -4,26 +4,25 @@ declare(strict_types=1);
 
 namespace BankTransferPro\Gateway;
 
+use BankTransferPro\Repository\BankLookup;
 use BankTransferPro\Repository\BankRepository;
-use WHMCS\Database\Capsule;
+use BankTransferPro\Support\InvoiceCurrencyResolver;
 
 final class GatewayRenderer
 {
-    public static function render(string $gatewaySlug, array $params): string
+    /**
+     * @param array<string, mixed> $params
+     */
+    public static function render(string $gatewaySlug, array $params, ?BankLookup $banks = null, ?InvoiceCurrencyResolver $currencies = null): string
     {
         if (! class_exists(BankRepository::class)) {
             require_once dirname(__DIR__) . '/Bootstrap.php';
             \BankTransferPro\Bootstrap::init();
         }
 
-        $repo = new BankRepository();
-        $bank = $repo->findBySlug($gatewaySlug);
-        if ($bank === null && $gatewaySlug === 'banktransferpro') {
-            $bank = self::findByInvoiceCurrency($repo, $params);
-        }
-
+        $bank = self::lookupBank($gatewaySlug, $params, $banks, $currencies);
         if ($bank === null) {
-            return '<p class="btp-bank-details btp-bank-details--missing">Bank details are temporarily unavailable.</p>';
+            return self::missingDetailsMarkup();
         }
 
         $displayName = htmlspecialchars((string) $bank['display_name'], ENT_QUOTES, 'UTF-8');
@@ -49,29 +48,48 @@ HTML;
 
     /**
      * @param array<string, mixed> $params
+     * @return array<string, mixed>|null
      */
-    private static function findByInvoiceCurrency(BankRepository $repo, array $params): ?array
+    private static function lookupBank(
+        string $gatewaySlug,
+        array $params,
+        ?BankLookup $banks,
+        ?InvoiceCurrencyResolver $currencies
+    ): ?array {
+        try {
+            $repo = $banks ?? new BankRepository();
+            $resolver = $currencies ?? new InvoiceCurrencyResolver();
+            $bank = $repo->findBySlug($gatewaySlug);
+            if ($bank === null && $gatewaySlug === 'banktransferpro') {
+                $bank = self::findByInvoiceCurrency($repo, $params, $resolver);
+            }
+
+            return $bank;
+        } catch (\Throwable $exception) {
+            if (function_exists('logActivity')) {
+                logActivity('Bank Transfer Pro: unable to load invoice bank details: ' . $exception->getMessage());
+            }
+
+            return null;
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $params
+     * @return array<string, mixed>|null
+     */
+    private static function findByInvoiceCurrency(BankLookup $repo, array $params, InvoiceCurrencyResolver $resolver): ?array
     {
-        $invoiceId = (int) ($params['invoiceid'] ?? 0);
-        if ($invoiceId <= 0) {
+        $code = $resolver->codeForGatewayLink($params);
+        if ($code === null) {
             return null;
         }
 
-        $invoice = Capsule::table('tblinvoices')->where('id', $invoiceId)->first(['currency']);
-        if ($invoice === null) {
-            return null;
-        }
+        return $repo->findActiveByCurrencyCode($code);
+    }
 
-        $currencyId = (int) ($invoice->currency ?? 0);
-        if ($currencyId <= 0) {
-            return null;
-        }
-
-        $currency = Capsule::table('tblcurrencies')->where('id', $currencyId)->first(['code']);
-        if ($currency === null) {
-            return null;
-        }
-
-        return $repo->findActiveByCurrencyCode((string) $currency->code);
+    private static function missingDetailsMarkup(): string
+    {
+        return '<p class="btp-bank-details btp-bank-details--missing">Bank details are temporarily unavailable.</p>';
     }
 }

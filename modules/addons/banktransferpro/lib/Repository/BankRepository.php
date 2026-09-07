@@ -7,7 +7,7 @@ namespace BankTransferPro\Repository;
 use BankTransferPro\Support\DuplicateGuard;
 use WHMCS\Database\Capsule;
 
-final class BankRepository
+final class BankRepository implements BankLookup
 {
     /**
      * @return list<array<string, mixed>>
