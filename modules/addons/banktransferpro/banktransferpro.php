@@ -104,3 +104,26 @@ function banktransferpro_clientarea(array $vars): array
 
     return [];
 }
+
+/**
+ * @param array<string, mixed> $vars
+ */
+function banktransferpro_sidebar(array $vars): string
+{
+    $link = htmlspecialchars((string) ($vars['modulelink'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $lang = is_array($vars['_lang'] ?? null) ? $vars['_lang'] : [];
+    $name = htmlspecialchars((string) ($lang['name'] ?? 'Bank Transfer Pro'), ENT_QUOTES, 'UTF-8');
+    $dashboard = htmlspecialchars((string) ($lang['dashboard'] ?? 'Dashboard'), ENT_QUOTES, 'UTF-8');
+    $info = htmlspecialchars((string) ($lang['info'] ?? 'Info'), ENT_QUOTES, 'UTF-8');
+    $docs = htmlspecialchars((string) ($lang['documentation'] ?? 'Documentation'), ENT_QUOTES, 'UTF-8');
+
+    return '<span class="header">'
+        . '<img src="images/icons/addonmodules.png" class="absmiddle" alt="" width="16" height="16" /> '
+        . $name
+        . '</span>'
+        . '<ul class="menu">'
+        . '<li><a href="' . $link . '&tab=dashboard">' . $dashboard . '</a></li>'
+        . '<li><a href="' . $link . '&tab=info">' . $info . '</a></li>'
+        . '<li><a href="' . $link . '&tab=documentation">' . $docs . '</a></li>'
+        . '</ul>';
+}

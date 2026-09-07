@@ -1,10 +1,6 @@
-<ul class="nav nav-tabs btp-nav-tabs">
-    <li><a href="{$modulelink}&tab=dashboard">Dashboard</a></li>
-    <li><a href="{$modulelink}&tab=info">Info</a></li>
-    <li class="active"><a href="{$modulelink}&tab=documentation">Documentation</a></li>
-</ul>
+{include file="tabs.tpl"}
 
-<h2>Documentation</h2>
+<h2>{$_lang.documentation|default:'Documentation'}</h2>
 
 <div class="well">
     <h4>Installation</h4>
