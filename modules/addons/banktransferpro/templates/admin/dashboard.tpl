@@ -42,6 +42,7 @@
                     <h4 class="modal-title" id="btp-bank-modal-label">Add Bank Details</h4>
                 </div>
                 <div class="modal-body">
+                    <div id="btp-bank-modal-alert" class="alert" style="display:none;"></div>
                     <input type="hidden" name="id" id="btp-bank-id" value="" />
                     <div class="form-group">
                         <label for="btp-bank-name">Bank Name <span class="text-danger">*</span></label>
