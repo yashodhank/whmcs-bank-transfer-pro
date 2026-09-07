@@ -15,6 +15,7 @@ require_once __DIR__ . '/lib/Bootstrap.php';
 use BankTransferPro\Bootstrap;
 use BankTransferPro\Repository\BankRepository;
 use BankTransferPro\Repository\SettingsRepository;
+use BankTransferPro\Support\InvoiceCurrencyResolver;
 use BankTransferPro\Support\RuntimeEnvironment;
 use WHMCS\Database\Capsule;
 
@@ -106,17 +107,12 @@ add_hook('InvoiceCreation', 1, static function (array $vars): array {
         return $vars;
     }
 
-    $currencyId = (int) ($vars['currency'] ?? 0);
-    if ($currencyId <= 0) {
+    $code = (new InvoiceCurrencyResolver())->codeFromHookVars($vars);
+    if ($code === null) {
         return $vars;
     }
 
-    $currency = Capsule::table('tblcurrencies')->where('id', $currencyId)->first(['code']);
-    if ($currency === null) {
-        return $vars;
-    }
-
-    $bank = (new BankRepository())->findActiveByCurrencyCode((string) $currency->code);
+    $bank = (new BankRepository())->findActiveByCurrencyCode($code);
     if ($bank === null) {
         return $vars;
     }

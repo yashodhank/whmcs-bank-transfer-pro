@@ -8,6 +8,7 @@ use BankTransferPro\Admin\JsonResponse;
 use BankTransferPro\Repository\BankRepository;
 use BankTransferPro\Repository\ProofRepository;
 use BankTransferPro\Repository\SettingsRepository;
+use BankTransferPro\Support\InvoiceCurrencyResolver;
 use WHMCS\Database\Capsule;
 
 final class UploadController
@@ -187,16 +188,11 @@ final class UploadController
             return $this->banks->findBySlug($gateway);
         }
 
-        $currencyId = (int) ($invoice->currency ?? 0);
-        if ($currencyId <= 0) {
+        $code = (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice);
+        if ($code === null) {
             return null;
         }
 
-        $currency = Capsule::table('tblcurrencies')->where('id', $currencyId)->first(['code']);
-        if ($currency === null) {
-            return null;
-        }
-
-        return $this->banks->findActiveByCurrencyCode((string) $currency->code);
+        return $this->banks->findActiveByCurrencyCode($code);
     }
 }
