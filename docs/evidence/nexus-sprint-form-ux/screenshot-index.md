@@ -14,4 +14,4 @@ Live WHMCS admin/client captures, if reachable in Phase 4. Until then, PHPUnit +
 | S8 | Admin CSS absent off addon page | desktop | pending | not captured |
 | S9 | Client CSS absent off `viewinvoice` | desktop | pending | not captured |
 
-Substitute evidence: PHPUnit source/template contracts listed in [gate-checklist.md](gate-checklist.md). Reality Checker remains **NEEDS WORK** until an edit round-trip is proven in a live admin or an honest substitute is recorded in [phase-4-hardening.md](phase-4-hardening.md).
+Substitute evidence: PHPUnit source/template contracts listed in [gate-checklist.md](gate-checklist.md) and [phase-4-hardening.md](phase-4-hardening.md). Live WHMCS was not reachable (API HTTP 403). Reality Checker remains **NEEDS WORK** until an edit round-trip is proven in a live admin.
