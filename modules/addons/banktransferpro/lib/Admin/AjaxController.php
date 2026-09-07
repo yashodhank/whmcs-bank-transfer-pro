@@ -14,9 +14,6 @@ use WHMCS\Database\Capsule;
 
 final class AjaxController
 {
-    /** @var array<string, mixed>|null */
-    private ?array $requestJson = null;
-
     public function __construct(
         private readonly BankRepository $bankRepository = new BankRepository(),
         private readonly SlugGenerator $slugGenerator = new SlugGenerator(),
@@ -29,9 +26,12 @@ final class AjaxController
     public function handle(): void
     {
         $this->assertAdminAccess();
-        $this->assertCsrf();
 
         $action = (string) ($_REQUEST['btp_action'] ?? $_REQUEST['action'] ?? 'list');
+
+        if (in_array($action, ['create', 'update', 'delete'], true)) {
+            $this->assertCsrf();
+        }
 
         match ($action) {
             'list' => $this->listBanks(),
@@ -199,10 +199,7 @@ final class AjaxController
      */
     private function validatedPayload(): array
     {
-        $input = $this->getRequestJson();
-        if ($input === null) {
-            $input = $_POST;
-        }
+        $input = $_POST;
 
         $bankName = trim((string) ($input['bank_name'] ?? ''));
         $branchName = trim((string) ($input['branch_name'] ?? ''));
@@ -267,9 +264,7 @@ final class AjaxController
 
     private function assertDeleteConfirmed(): void
     {
-        $input = $this->getRequestJson();
-        $confirmed = $_POST['confirm_delete']
-            ?? (is_array($input) ? ($input['confirm_delete'] ?? false) : false);
+        $confirmed = $_POST['confirm_delete'] ?? false;
 
         if (filter_var($confirmed, FILTER_VALIDATE_BOOLEAN)) {
             return;
@@ -298,12 +293,15 @@ final class AjaxController
             return;
         }
 
-        $input = $this->getRequestJson();
-        $token = $_POST['token']
-            ?? $_SERVER['HTTP_X_CSRF_TOKEN']
-            ?? (is_array($input) ? ($input['token'] ?? '') : '');
+        $token = (string) ($_POST['token'] ?? '');
 
-        if ($token !== '' && check_token('WHMCS.admin.default', (string) $token)) {
+        try {
+            $valid = check_token('WHMCS.admin.default', $token !== '' ? $token : null);
+        } catch (\Throwable) {
+            JsonResponse::error('CSRF_FAILED', 'Invalid security token.', 403);
+        }
+
+        if ($valid) {
             return;
         }
 
@@ -312,34 +310,7 @@ final class AjaxController
 
     private function resolveIdFromRequest(): int
     {
-        $input = $this->getRequestJson();
-        if (is_array($input) && isset($input['id'])) {
-            return (int) $input['id'];
-        }
-
-        return (int) ($_REQUEST['id'] ?? 0);
-    }
-
-    /**
-     * @return array<string, mixed>|null
-     */
-    private function getRequestJson(): ?array
-    {
-        if ($this->requestJson !== null) {
-            return $this->requestJson;
-        }
-
-        $raw = file_get_contents('php://input');
-        if ($raw === false || trim($raw) === '') {
-            $this->requestJson = null;
-
-            return null;
-        }
-
-        $decoded = json_decode($raw, true);
-        $this->requestJson = is_array($decoded) ? $decoded : null;
-
-        return $this->requestJson;
+        return (int) ($_POST['id'] ?? $_GET['id'] ?? $_REQUEST['id'] ?? 0);
     }
 
     private function cleanupFailedCreate(string $slug, bool $gatewayActivated): void

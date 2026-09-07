@@ -24,8 +24,7 @@ final class AdminDashboardTemplateTest extends TestCase
         $this->assertIsString($script);
         $this->assertIsString($template);
         $this->assertStringContainsString("var csrfToken = config.csrfToken || config.adminToken || '';", $script);
-        $this->assertStringContainsString("payload.token = csrfToken;", $script);
-        $this->assertStringContainsString("'X-CSRF-Token': csrfToken", $script);
+        $this->assertStringContainsString("body.append('token', csrfToken)", $script);
         $this->assertStringContainsString('csrfToken: {$csrfToken|@json_encode nofilter},', $template);
     }
 
