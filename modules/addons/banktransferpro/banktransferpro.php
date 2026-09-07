@@ -22,7 +22,7 @@ function banktransferpro_config(): array
     return [
         'name' => 'Bank Transfer Pro',
         'description' => 'Multi-currency bank transfer gateways with auto-generated payment modules, invoice bank details, and client payment proof upload.',
-        'version' => '1.1.1',
+        'version' => '1.1.2',
         'author' => 'Securiace Technologies',
         'language' => 'english',
         'fields' => [],
@@ -32,13 +32,7 @@ function banktransferpro_config(): array
 function banktransferpro_activate(): array
 {
     try {
-        Bootstrap::init();
-
-        $runner = new MigrationRunner(
-            new WhmcsCapsuleExecutor(),
-            __DIR__ . '/migrations'
-        );
-        $runner->runPending();
+        banktransferpro_bootstrap(true);
 
         (new SettingsRepository())->seedDefaults();
 
@@ -85,7 +79,7 @@ function banktransferpro_deactivate(): array
  */
 function banktransferpro_output(array $vars): void
 {
-    Bootstrap::init();
+    banktransferpro_bootstrap(true);
     (new DashboardController())->handle($vars);
 }
 
@@ -95,7 +89,7 @@ function banktransferpro_output(array $vars): void
  */
 function banktransferpro_clientarea(array $vars): array
 {
-    Bootstrap::init();
+    banktransferpro_bootstrap(true);
 
     $action = trim((string) ($_REQUEST['action'] ?? ''));
     if ($action === 'upload-proof') {
@@ -103,6 +97,28 @@ function banktransferpro_clientarea(array $vars): array
     }
 
     return [];
+}
+
+function banktransferpro_bootstrap(bool $runMigrations = false): void
+{
+    Bootstrap::init();
+
+    if (! $runMigrations) {
+        return;
+    }
+
+    static $migrationsApplied = false;
+    if ($migrationsApplied) {
+        return;
+    }
+
+    $migrationsApplied = true;
+
+    $runner = new MigrationRunner(
+        new WhmcsCapsuleExecutor(),
+        __DIR__ . '/migrations'
+    );
+    $runner->runPending();
 }
 
 /**

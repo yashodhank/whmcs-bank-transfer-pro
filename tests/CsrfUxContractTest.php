@@ -155,6 +155,24 @@ final class CsrfUxContractTest extends TestCase
         $this->assertStringNotContainsString('return response.json();', $hooks);
     }
 
+    public function testInvoiceFooterRelabelsGenericGatewayTextWithBankLabel(): void
+    {
+        $hooks = $this->readModule('hooks.php');
+
+        $this->assertStringContainsString("select[name=\"paymentmethod\"]", $hooks);
+        $this->assertStringContainsString('btp_payment_label', $hooks);
+        $this->assertStringContainsString('Pay via', $hooks);
+    }
+
+    public function testPaymentProofPanelIncludesSupportFallback(): void
+    {
+        $hooks = $this->readModule('hooks.php');
+
+        $this->assertStringContainsString('Open Support Instead', $hooks);
+        $this->assertStringContainsString('reply to your invoice email', $hooks);
+        $this->assertStringContainsString('submitticket.php?step=2&deptid=', $hooks);
+    }
+
     public function testUploadCsrfFailureIsCaughtAsJson(): void
     {
         $body = $this->methodBody($this->readModule('lib/Client/UploadController.php'), 'assertCsrf');

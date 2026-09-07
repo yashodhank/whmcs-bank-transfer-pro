@@ -25,8 +25,7 @@ final class GatewayRenderer
             return self::missingDetailsMarkup();
         }
 
-        $displayName = htmlspecialchars((string) $bank['display_name'], ENT_QUOTES, 'UTF-8');
-        $accountDetails = nl2br(htmlspecialchars((string) $bank['account_details'], ENT_QUOTES, 'UTF-8'));
+        $paymentLabel = htmlspecialchars(BankRepository::buildInvoiceLabel($bank), ENT_QUOTES, 'UTF-8');
         $invoiceRef = htmlspecialchars((string) ($params['invoicenum'] ?? $params['invoiceid'] ?? ''), ENT_QUOTES, 'UTF-8');
         $refLabel = 'Invoice Reference';
 
@@ -37,11 +36,18 @@ final class GatewayRenderer
             }
         }
 
+        $structuredMarkup = self::structuredDetailsMarkup($bank);
+        $legacyDetails = self::legacyDetailsMarkup((string) ($bank['account_details'] ?? ''));
+
         return <<<HTML
 <div class="btp-bank-details">
-    <p><strong>{$displayName}</strong></p>
-    <p>{$accountDetails}</p>
-    <p><strong>{$refLabel}:</strong> {$invoiceRef}</p>
+    <div class="btp-bank-details__summary">
+        <span class="btp-bank-details__summary-label">Pay via</span>
+        <strong>{$paymentLabel}</strong>
+    </div>
+    {$structuredMarkup}
+    {$legacyDetails}
+    <div class="btp-bank-details__reference"><strong>{$refLabel}:</strong> {$invoiceRef}</div>
 </div>
 HTML;
     }
@@ -91,5 +97,70 @@ HTML;
     private static function missingDetailsMarkup(): string
     {
         return '<p class="btp-bank-details btp-bank-details--missing">Bank details are temporarily unavailable.</p>';
+    }
+
+    /**
+     * @param array<string, mixed> $bank
+     */
+    private static function structuredDetailsMarkup(array $bank): string
+    {
+        $rows = [];
+
+        $upiId = trim((string) ($bank['upi_id'] ?? ''));
+        if ($upiId !== '') {
+            $rows[] = self::detailRow('UPI', $upiId);
+        }
+
+        $accountRows = [];
+        $accountName = trim((string) ($bank['account_name'] ?? ''));
+        if ($accountName !== '') {
+            $accountRows[] = self::detailRow('Account Name', $accountName);
+        }
+
+        $accountNumber = trim((string) ($bank['account_number'] ?? ''));
+        if ($accountNumber !== '') {
+            $accountRows[] = self::detailRow('Account Number', $accountNumber);
+        }
+
+        $ifscCode = trim((string) ($bank['ifsc_code'] ?? ''));
+        if ($ifscCode !== '') {
+            $accountRows[] = self::detailRow('IFSC', $ifscCode);
+        }
+
+        $branchName = trim((string) ($bank['branch_name'] ?? ''));
+        if ($branchName !== '') {
+            $accountRows[] = self::detailRow('Bank Branch', $branchName);
+        }
+
+        $bankName = trim((string) ($bank['bank_name'] ?? ''));
+        if ($bankName !== '') {
+            $accountRows[] = self::detailRow('Bank Name', $bankName);
+        }
+
+        if ($accountRows !== []) {
+            $rows[] = '<div class="btp-bank-details__section-title">Bank Account</div>' . implode('', $accountRows);
+        }
+
+        return implode('', $rows);
+    }
+
+    private static function legacyDetailsMarkup(string $details): string
+    {
+        $details = trim($details);
+        if ($details === '') {
+            return '';
+        }
+
+        $accountDetails = nl2br(htmlspecialchars($details, ENT_QUOTES, 'UTF-8'));
+
+        return '<div class="btp-bank-details__notes">' . $accountDetails . '</div>';
+    }
+
+    private static function detailRow(string $label, string $value): string
+    {
+        $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
+        $safeValue = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+
+        return '<div class="btp-bank-details__row"><span class="btp-bank-details__label">' . $safeLabel . ':</span> <span class="btp-bank-details__value">' . $safeValue . '</span></div>';
     }
 }

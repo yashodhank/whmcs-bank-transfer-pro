@@ -104,6 +104,11 @@ final class AjaxController
                 'currency_code' => $payload['currency_code'],
                 'account_details' => $payload['account_details'],
                 'display_name' => $displayName,
+                'invoice_label' => $payload['invoice_label'],
+                'upi_id' => $payload['upi_id'],
+                'account_name' => $payload['account_name'],
+                'account_number' => $payload['account_number'],
+                'ifsc_code' => $payload['ifsc_code'],
             ]);
         } catch (\Throwable $e) {
             $this->cleanupFailedCreate($slug, $gatewayActivated);
@@ -156,6 +161,11 @@ final class AjaxController
                 'currency_code' => $payload['currency_code'],
                 'account_details' => $payload['account_details'],
                 'display_name' => $displayName,
+                'invoice_label' => $payload['invoice_label'],
+                'upi_id' => $payload['upi_id'],
+                'account_name' => $payload['account_name'],
+                'account_number' => $payload['account_number'],
+                'ifsc_code' => $payload['ifsc_code'],
             ]);
         } catch (\Throwable $e) {
             JsonResponse::error('UPDATE_FAILED', $e->getMessage(), 500);
@@ -195,7 +205,17 @@ final class AjaxController
     }
 
     /**
-     * @return array{bank_name: string, branch_name: string, currency_code: string, account_details: string}
+     * @return array{
+     *   bank_name: string,
+     *   branch_name: string,
+     *   currency_code: string,
+     *   account_details: string,
+     *   invoice_label: string,
+     *   upi_id: string,
+     *   account_name: string,
+     *   account_number: string,
+     *   ifsc_code: string
+     * }
      */
     private function validatedPayload(): array
     {
@@ -205,6 +225,11 @@ final class AjaxController
         $branchName = trim((string) ($input['branch_name'] ?? ''));
         $currencyCode = strtoupper(trim((string) ($input['currency_code'] ?? '')));
         $accountDetails = trim((string) ($input['account_details'] ?? ''));
+        $invoiceLabel = trim((string) ($input['invoice_label'] ?? ''));
+        $upiId = trim((string) ($input['upi_id'] ?? ''));
+        $accountName = trim((string) ($input['account_name'] ?? ''));
+        $accountNumber = trim((string) ($input['account_number'] ?? ''));
+        $ifscCode = strtoupper(trim((string) ($input['ifsc_code'] ?? '')));
 
         if ($bankName === '') {
             JsonResponse::error('VALIDATION_ERROR', 'Bank name is required.');
@@ -214,8 +239,11 @@ final class AjaxController
             JsonResponse::error('VALIDATION_ERROR', 'A valid 3-letter currency code is required.');
         }
 
-        if ($accountDetails === '') {
-            JsonResponse::error('VALIDATION_ERROR', 'Bank account details are required.');
+        if ($accountDetails === '' && $upiId === '' && $accountNumber === '') {
+            JsonResponse::error(
+                'VALIDATION_ERROR',
+                'Provide bank account details, a UPI ID, or an account number for the invoice payment block.'
+            );
         }
 
         if (! $this->currencyExists($currencyCode)) {
@@ -227,6 +255,11 @@ final class AjaxController
             'branch_name' => $branchName,
             'currency_code' => $currencyCode,
             'account_details' => $accountDetails,
+            'invoice_label' => $invoiceLabel,
+            'upi_id' => $upiId,
+            'account_name' => $accountName,
+            'account_number' => $accountNumber,
+            'ifsc_code' => $ifscCode,
         ];
     }
 

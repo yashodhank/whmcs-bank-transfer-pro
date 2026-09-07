@@ -54,4 +54,20 @@ final class AdminDashboardTemplateTest extends TestCase
             $template
         );
     }
+
+    public function testDashboardFormIncludesStructuredInvoiceFields(): void
+    {
+        $template = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/templates/admin/dashboard.tpl');
+        $script = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/assets/js/admin.js');
+
+        $this->assertIsString($template);
+        $this->assertIsString($script);
+        $this->assertStringContainsString('name="invoice_label"', $template);
+        $this->assertStringContainsString('name="upi_id"', $template);
+        $this->assertStringContainsString('name="account_name"', $template);
+        $this->assertStringContainsString('name="account_number"', $template);
+        $this->assertStringContainsString('name="ifsc_code"', $template);
+        $this->assertStringContainsString("invoice_label: document.getElementById('btp-invoice-label').value", $script);
+        $this->assertStringContainsString("upi_id: document.getElementById('btp-upi-id').value", $script);
+    }
 }

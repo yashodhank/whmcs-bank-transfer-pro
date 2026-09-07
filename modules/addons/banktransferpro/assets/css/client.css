@@ -3,8 +3,45 @@
     margin: 1em 0;
 }
 
+.btp-bank-details {
+    padding: 12px 0;
+}
+
+.btp-bank-details__summary,
+.btp-payment-method-summary {
+    margin-bottom: 12px;
+}
+
+.btp-bank-details__summary-label,
+.btp-payment-method-summary__label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.btp-bank-details__section-title {
+    margin: 12px 0 6px;
+    font-weight: 700;
+}
+
+.btp-bank-details__row,
+.btp-bank-details__reference,
+.btp-bank-details__notes {
+    margin-bottom: 6px;
+}
+
+.btp-bank-details__label {
+    font-weight: 700;
+}
+
 .btp-payment-proof h4 {
     margin-top: 0;
+}
+
+.btp-payment-proof__support-link {
+    margin-left: 8px;
 }
 
 .btp-payment-proof__result {
