@@ -5,6 +5,11 @@
     var apiUrl = config.apiUrl;
     var csrfToken = config.csrfToken || config.adminToken || '';
 
+    function getAlertElement(target) {
+        var id = target === 'modal' ? 'btp-bank-modal-alert' : 'btp-alert';
+        return document.getElementById(id);
+    }
+
     function buildRequestError(response, bodyText) {
         var message = 'Request failed.';
         var payload = null;
@@ -32,14 +37,24 @@
         return requestError;
     }
 
-    function showAlert(type, message) {
-        var alert = document.getElementById('btp-alert');
+    function showAlert(type, message, target) {
+        var alert = getAlertElement(target);
         if (!alert) {
             return;
         }
         alert.className = 'alert alert-' + type;
         alert.textContent = message;
         alert.style.display = 'block';
+    }
+
+    function hideAlert(target) {
+        var alert = getAlertElement(target);
+        if (!alert) {
+            return;
+        }
+        alert.style.display = 'none';
+        alert.textContent = '';
+        alert.className = 'alert';
     }
 
     function truncate(text, max) {
@@ -164,6 +179,7 @@
             form.reset();
         }
         document.getElementById('btp-bank-id').value = '';
+        hideAlert('modal');
     }
 
     function fillForm(bank) {
@@ -254,6 +270,7 @@
         if (form) {
             form.addEventListener('submit', function (event) {
                 event.preventDefault();
+                hideAlert('modal');
                 var id = document.getElementById('btp-bank-id').value;
                 var payload = {
                     bank_name: document.getElementById('btp-bank-name').value,
@@ -268,14 +285,14 @@
 
                 apiRequest(action, 'POST', payload).then(function (response) {
                     if (!response.success) {
-                        showAlert('danger', response.error ? response.error.message : 'Save failed.');
+                        showAlert('danger', response.error ? response.error.message : 'Save failed.', 'modal');
                         return;
                     }
                     showAlert('success', response.message || 'Saved.');
                     closeModal();
                     loadBanks();
                 }).catch(function (error) {
-                    showAlert('danger', error && error.message ? error.message : 'Save failed.');
+                    showAlert('danger', error && error.message ? error.message : 'Save failed.', 'modal');
                 });
             });
         }

@@ -29,6 +29,18 @@ final class AdminDashboardTemplateTest extends TestCase
         $this->assertStringContainsString('csrfToken: {$csrfToken|@json_encode nofilter},', $template);
     }
 
+    public function testSaveErrorsRenderInsideModal(): void
+    {
+        $script = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/assets/js/admin.js');
+        $template = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/templates/admin/dashboard.tpl');
+
+        $this->assertIsString($script);
+        $this->assertIsString($template);
+        $this->assertStringContainsString('id="btp-bank-modal-alert"', $template);
+        $this->assertStringContainsString("showAlert('danger', response.error ? response.error.message : 'Save failed.', 'modal');", $script);
+        $this->assertStringContainsString("showAlert('danger', error && error.message ? error.message : 'Save failed.', 'modal');", $script);
+    }
+
     public function testAdminScriptPathDoesNotUrlEncodeAssetBase(): void
     {
         $template = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/templates/admin/dashboard.tpl');
