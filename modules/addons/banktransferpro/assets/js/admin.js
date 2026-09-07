@@ -79,15 +79,24 @@
             method: method || 'GET',
             credentials: 'same-origin',
             headers: {
-                'Accept': 'application/json',
-                'X-CSRF-Token': csrfToken
+                'Accept': 'application/json'
             }
         };
 
         if (payload) {
-            payload.token = csrfToken;
-            options.headers['Content-Type'] = 'application/json';
-            options.body = JSON.stringify(payload);
+            var body = new URLSearchParams();
+            Object.keys(payload).forEach(function (key) {
+                if (payload[key] === undefined || payload[key] === null) {
+                    return;
+                }
+                body.append(key, String(payload[key]));
+            });
+            if (csrfToken) {
+                body.append('token', csrfToken);
+            }
+            options.method = 'POST';
+            options.headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+            options.body = body.toString();
         }
 
         return fetch(url, options).then(function (response) {
@@ -136,8 +145,8 @@
                 '</td>' +
                 '<td>' + escapeHtml(bank.currency_code) + '</td>' +
                 '<td class="text-right btp-actions">' +
-                    '<button type="button" class="btn btn-default btn-sm btp-edit-btn" data-id="' + escapeHtml(bank.id) + '">Edit</button>' +
-                    '<button type="button" class="btn btn-danger btn-sm btp-delete-btn" data-id="' + escapeHtml(bank.id) + '">Delete</button>' +
+                    '<button type="button" class="btn btn-default btn-sm btp-edit-btn" data-id="' + escapeHtml(bank.id) + '"><i class="fas fa-pencil-alt"></i> Edit</button>' +
+                    '<button type="button" class="btn btn-danger btn-sm btp-delete-btn" data-id="' + escapeHtml(bank.id) + '"><i class="fas fa-trash-alt"></i> Delete</button>' +
                 '</td>';
             tbody.appendChild(row);
         });
@@ -212,11 +221,12 @@
                 return;
             }
 
-            if (target.classList.contains('btp-edit-btn')) {
-                var editId = target.getAttribute('data-id');
+            var editBtn = target.closest ? target.closest('.btp-edit-btn') : (target.classList.contains('btp-edit-btn') ? target : null);
+            if (editBtn) {
+                var editId = editBtn.getAttribute('data-id');
                 fetch(apiUrl + '&btp_action=get&id=' + encodeURIComponent(editId), {
                     credentials: 'same-origin',
-                    headers: { 'Accept': 'application/json', 'X-CSRF-Token': csrfToken }
+                    headers: { 'Accept': 'application/json' }
                 }).then(function (response) {
                     return response.text().then(function (bodyText) {
                         var payload = null;
@@ -247,8 +257,9 @@
                 });
             }
 
-            if (target.classList.contains('btp-delete-btn')) {
-                var deleteId = target.getAttribute('data-id');
+            var deleteBtn = target.closest ? target.closest('.btp-delete-btn') : (target.classList.contains('btp-delete-btn') ? target : null);
+            if (deleteBtn) {
+                var deleteId = deleteBtn.getAttribute('data-id');
                 if (!window.confirm('Delete this bank account and deactivate its gateway?')) {
                     return;
                 }
@@ -262,6 +273,8 @@
                     }
                     showAlert('success', payload.message || 'Bank deleted.');
                     loadBanks();
+                }).catch(function (error) {
+                    showAlert('danger', error && error.message ? error.message : 'Delete failed.');
                 });
             }
         });

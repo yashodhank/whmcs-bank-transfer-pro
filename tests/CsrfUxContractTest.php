@@ -118,15 +118,11 @@ final class CsrfUxContractTest extends TestCase
     public function testDeleteAjaxHasFailureCatch(): void
     {
         $script = $this->readModule('assets/js/admin.js');
-        $deletePos = strpos($script, "classList.contains('btp-delete-btn')");
-        $formPos = strpos($script, "getElementById('btp-bank-form')");
 
-        $this->assertNotFalse($deletePos);
-        $this->assertNotFalse($formPos);
-        $this->assertGreaterThan($deletePos, $formPos);
-
-        $deleteBlock = substr($script, $deletePos, $formPos - $deletePos);
-        $this->assertStringContainsString('.catch', $deleteBlock);
+        $this->assertMatchesRegularExpression(
+            "/apiRequest\\('delete'[\\s\\S]{0,500}\\.catch\\s*\\(/",
+            $script
+        );
     }
 
     public function testBankModalIncludesPostMethodAndHiddenToken(): void
