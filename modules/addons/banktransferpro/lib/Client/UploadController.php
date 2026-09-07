@@ -32,7 +32,7 @@ final class UploadController
         $this->assertClientLogin();
         $this->assertCsrf();
 
-        $invoiceId = (int) ($_POST['invoiceid'] ?? $_GET['invoiceid'] ?? 0);
+        $invoiceId = (int) ($_POST['invoiceid'] ?? 0);
         $note = trim((string) ($_POST['note'] ?? ''));
 
         $invoice = Capsule::table('tblinvoices')->where('id', $invoiceId)->first();
@@ -157,10 +157,23 @@ final class UploadController
 
     private function assertCsrf(): void
     {
+        if (! function_exists('check_token')) {
+            return;
+        }
+
         $token = $_POST['token'] ?? '';
-        if (function_exists('check_token') && ! check_token('WHMCS.default', $token)) {
+
+        try {
+            $valid = check_token('WHMCS.default', $token);
+        } catch (\Throwable) {
             JsonResponse::error('CSRF_FAILED', 'Invalid security token.', 403);
         }
+
+        if ($valid) {
+            return;
+        }
+
+        JsonResponse::error('CSRF_FAILED', 'Invalid security token.', 403);
     }
 
     private function isSupportedGateway(string $gateway): bool
