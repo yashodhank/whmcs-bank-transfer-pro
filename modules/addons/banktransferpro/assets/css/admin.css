@@ -31,3 +31,7 @@
 .btp-admin-scope .modal-body textarea {
     min-height: 140px;
 }
+
+.btp-admin-scope .modal-body h5 {
+    margin-top: 20px;
+}

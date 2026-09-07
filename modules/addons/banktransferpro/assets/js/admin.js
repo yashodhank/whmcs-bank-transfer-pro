@@ -135,7 +135,7 @@
 
         banks.forEach(function (bank) {
             var row = document.createElement('tr');
-            var detailsRaw = String(bank.account_details || '');
+            var detailsRaw = String(bank.account_details || bank.account_number || bank.upi_id || '');
             row.innerHTML =
                 '<td>' + escapeHtml(bank.id) + '</td>' +
                 '<td><code>' + escapeHtml(bank.gateway_slug) + '</code></td>' +
@@ -197,6 +197,11 @@
         document.getElementById('btp-branch-name').value = bank.branch_name;
         document.getElementById('btp-currency-code').value = bank.currency_code;
         document.getElementById('btp-account-details').value = bank.account_details;
+        document.getElementById('btp-invoice-label').value = bank.invoice_label || '';
+        document.getElementById('btp-upi-id').value = bank.upi_id || '';
+        document.getElementById('btp-account-name').value = bank.account_name || '';
+        document.getElementById('btp-account-number').value = bank.account_number || '';
+        document.getElementById('btp-ifsc-code').value = bank.ifsc_code || '';
     }
 
     function initAdminPage() {
@@ -289,7 +294,12 @@
                     bank_name: document.getElementById('btp-bank-name').value,
                     branch_name: document.getElementById('btp-branch-name').value,
                     currency_code: document.getElementById('btp-currency-code').value,
-                    account_details: document.getElementById('btp-account-details').value
+                    account_details: document.getElementById('btp-account-details').value,
+                    invoice_label: document.getElementById('btp-invoice-label').value,
+                    upi_id: document.getElementById('btp-upi-id').value,
+                    account_name: document.getElementById('btp-account-name').value,
+                    account_number: document.getElementById('btp-account-number').value,
+                    ifsc_code: document.getElementById('btp-ifsc-code').value
                 };
                 var action = id ? 'update' : 'create';
                 if (id) {

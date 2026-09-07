@@ -62,7 +62,19 @@ final class BankRepository implements BankLookup
     }
 
     /**
-     * @param array{bank_name: string, branch_name: string, currency_code: string, account_details: string, display_name: string, gateway_slug: string} $data
+     * @param array{
+     *   bank_name: string,
+     *   branch_name: string,
+     *   currency_code: string,
+     *   account_details: string,
+     *   display_name: string,
+     *   gateway_slug: string,
+     *   invoice_label?: string,
+     *   upi_id?: string,
+     *   account_name?: string,
+     *   account_number?: string,
+     *   ifsc_code?: string
+     * } $data
      */
     public function create(array $data): int
     {
@@ -75,6 +87,11 @@ final class BankRepository implements BankLookup
             'currency_code' => strtoupper($data['currency_code']),
             'account_details' => $data['account_details'],
             'display_name' => $data['display_name'],
+            'invoice_label' => trim((string) ($data['invoice_label'] ?? '')),
+            'upi_id' => trim((string) ($data['upi_id'] ?? '')),
+            'account_name' => trim((string) ($data['account_name'] ?? '')),
+            'account_number' => trim((string) ($data['account_number'] ?? '')),
+            'ifsc_code' => strtoupper(trim((string) ($data['ifsc_code'] ?? ''))),
             'duplicate_key' => DuplicateGuard::buildDuplicateKey(
                 $data['bank_name'],
                 $data['branch_name'],
@@ -87,7 +104,18 @@ final class BankRepository implements BankLookup
     }
 
     /**
-     * @param array{bank_name: string, branch_name: string, currency_code: string, account_details: string, display_name: string} $data
+     * @param array{
+     *   bank_name: string,
+     *   branch_name: string,
+     *   currency_code: string,
+     *   account_details: string,
+     *   display_name: string,
+     *   invoice_label?: string,
+     *   upi_id?: string,
+     *   account_name?: string,
+     *   account_number?: string,
+     *   ifsc_code?: string
+     * } $data
      */
     public function update(int $id, array $data): void
     {
@@ -97,6 +125,11 @@ final class BankRepository implements BankLookup
             'currency_code' => strtoupper($data['currency_code']),
             'account_details' => $data['account_details'],
             'display_name' => $data['display_name'],
+            'invoice_label' => trim((string) ($data['invoice_label'] ?? '')),
+            'upi_id' => trim((string) ($data['upi_id'] ?? '')),
+            'account_name' => trim((string) ($data['account_name'] ?? '')),
+            'account_number' => trim((string) ($data['account_number'] ?? '')),
+            'ifsc_code' => strtoupper(trim((string) ($data['ifsc_code'] ?? ''))),
             'duplicate_key' => DuplicateGuard::buildDuplicateKey(
                 $data['bank_name'],
                 $data['branch_name'],
@@ -156,13 +189,26 @@ final class BankRepository implements BankLookup
 
     public static function buildDisplayName(string $bankName, string $branchName): string
     {
-        $parts = ['Bank Transfer Pro', trim($bankName)];
+        $parts = [trim($bankName)];
         $branch = trim($branchName);
         if ($branch !== '') {
             $parts[] = $branch;
         }
 
         return implode(' — ', $parts);
+    }
+
+    public static function buildInvoiceLabel(array $bank): string
+    {
+        $custom = trim((string) ($bank['invoice_label'] ?? ''));
+        if ($custom !== '') {
+            return $custom;
+        }
+
+        return self::buildDisplayName(
+            (string) ($bank['bank_name'] ?? ''),
+            (string) ($bank['branch_name'] ?? '')
+        );
     }
 
     /**
@@ -178,6 +224,11 @@ final class BankRepository implements BankLookup
             'currency_code' => (string) $row->currency_code,
             'account_details' => (string) $row->account_details,
             'display_name' => (string) $row->display_name,
+            'invoice_label' => (string) ($row->invoice_label ?? ''),
+            'upi_id' => (string) ($row->upi_id ?? ''),
+            'account_name' => (string) ($row->account_name ?? ''),
+            'account_number' => (string) ($row->account_number ?? ''),
+            'ifsc_code' => (string) ($row->ifsc_code ?? ''),
             'is_active' => (bool) $row->is_active,
             'created_at' => (string) $row->created_at,
             'updated_at' => (string) $row->updated_at,

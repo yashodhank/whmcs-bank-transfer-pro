@@ -21,10 +21,17 @@ final class GatewayRendererTest extends TestCase
 
         $this->assertSame(['banktransferpro'], $banks->slugLookups);
         $this->assertSame(['USD'], $banks->currencyLookups);
-        $this->assertStringContainsString('Treasury USD', $html);
-        $this->assertStringContainsString('IBAN US00', $html);
+        $this->assertStringContainsString('Pay via', $html);
+        $this->assertStringContainsString('IDBI Bank - Nanded', $html);
+        $this->assertStringContainsString('UPI:', $html);
+        $this->assertStringContainsString('securiace.com@idbi', $html);
+        $this->assertStringContainsString('Account Number:', $html);
+        $this->assertStringContainsString('500102000004909', $html);
+        $this->assertStringContainsString('IFSC:', $html);
+        $this->assertStringContainsString('IBKL0000500', $html);
         $this->assertStringContainsString('INV-300003464', $html);
         $this->assertStringNotContainsString('temporarily unavailable', $html);
+        $this->assertStringNotContainsString('Bank Transfer Pro', $html);
     }
 
     public function testRenderFailsClosedWhenParamsCurrencyCannotSelectABank(): void
@@ -83,8 +90,15 @@ final class RecordingBankLookup implements BankLookup
     public function __construct(
         private array $activeByCurrency = [
             'USD' => [
-                'display_name' => 'Treasury USD',
-                'account_details' => 'IBAN US00',
+                'display_name' => 'IDBI Bank — Nanded',
+                'invoice_label' => 'IDBI Bank - Nanded',
+                'upi_id' => 'securiace.com@idbi',
+                'account_name' => 'SECURIACE TECHNOLOGIES',
+                'account_number' => '500102000004909',
+                'ifsc_code' => 'IBKL0000500',
+                'account_details' => 'UPI: securiace.com@idbi',
+                'bank_name' => 'IDBI Bank',
+                'branch_name' => 'NANDED',
                 'gateway_slug' => 'banktransferpro',
             ],
         ]

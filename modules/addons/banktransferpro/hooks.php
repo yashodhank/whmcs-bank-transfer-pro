@@ -7,7 +7,7 @@ if (! defined('WHMCS')) {
 }
 
 if (! defined('BTP_ADDON_ASSET_VERSION')) {
-    define('BTP_ADDON_ASSET_VERSION', '1.1.1');
+    define('BTP_ADDON_ASSET_VERSION', '1.1.2');
 }
 
 require_once __DIR__ . '/lib/Bootstrap.php';
@@ -60,9 +60,6 @@ add_hook('ClientAreaPageViewInvoice', 1, static function (array $vars): array {
     }
 
     $settings = new SettingsRepository();
-    if (! $settings->isProofUploadEnabled()) {
-        return $vars;
-    }
 
     $invoiceId = (int) ($vars['invoiceid'] ?? 0);
     if ($invoiceId <= 0) {
@@ -74,22 +71,30 @@ add_hook('ClientAreaPageViewInvoice', 1, static function (array $vars): array {
         return $vars;
     }
 
-    $status = (string) $invoice->status;
-    if (! in_array($status, ['Unpaid', 'Payment Pending'], true)) {
-        return $vars;
-    }
-
     $gateway = (string) $invoice->paymentmethod;
     if (! btp_is_supported_gateway($gateway)) {
         return $vars;
     }
 
-    $vars['btp_show_payment_proof'] = true;
-    $vars['btp_upload_action'] = 'index.php?m=banktransferpro&action=upload-proof';
-    $vars['btp_invoice_id'] = $invoiceId;
-    $vars['btp_csrf_token'] = generate_token('plain');
-    $vars['btp_max_upload_mb'] = $settings->get('max_upload_size_mb', '5');
-    $vars['btp_allowed_types'] = implode(', ', $settings->allowedMimeTypes());
+    $bank = btp_resolve_invoice_bank($invoice, $gateway);
+    if ($bank !== null) {
+        $vars['btp_payment_label'] = BankRepository::buildInvoiceLabel($bank);
+    }
+
+    $vars['btp_support_url'] = btp_support_ticket_url($settings);
+
+    $status = (string) $invoice->status;
+    if (
+        $settings->isProofUploadEnabled()
+        && in_array($status, ['Unpaid', 'Payment Pending'], true)
+    ) {
+        $vars['btp_show_payment_proof'] = true;
+        $vars['btp_upload_action'] = 'index.php?m=banktransferpro&action=upload-proof';
+        $vars['btp_invoice_id'] = $invoiceId;
+        $vars['btp_csrf_token'] = generate_token('plain');
+        $vars['btp_max_upload_mb'] = $settings->get('max_upload_size_mb', '5');
+        $vars['btp_allowed_types'] = implode(', ', $settings->allowedMimeTypes());
+    }
 
     return $vars;
 });
@@ -125,15 +130,15 @@ add_hook('InvoiceCreation', 1, static function (array $vars): array {
 });
 
 add_hook('ClientAreaPageViewInvoice', 2, static function (array $vars): array {
-    if (empty($vars['btp_show_payment_proof'])) {
+    if (empty($vars['btp_payment_label']) && empty($vars['btp_show_payment_proof'])) {
         return $vars;
     }
 
-    $html = btp_render_payment_proof_panel($vars);
+    $html = btp_render_invoice_footer($vars);
     btp_payment_proof_footer_html($html);
 
     return array_merge($vars, [
-        'btp_payment_proof_html' => $html,
+        'btp_payment_proof_html' => ! empty($vars['btp_show_payment_proof']) ? btp_render_payment_proof_panel($vars) : '',
     ]);
 });
 
@@ -156,6 +161,7 @@ function btp_render_payment_proof_panel(array $vars): string
     $token = htmlspecialchars((string) ($vars['btp_csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8');
     $maxMb = htmlspecialchars((string) ($vars['btp_max_upload_mb'] ?? '5'), ENT_QUOTES, 'UTF-8');
     $allowed = htmlspecialchars((string) ($vars['btp_allowed_types'] ?? ''), ENT_QUOTES, 'UTF-8');
+    $supportUrl = htmlspecialchars((string) ($vars['btp_support_url'] ?? 'supporttickets.php'), ENT_QUOTES, 'UTF-8');
 
     return <<<HTML
 <div class="btp-payment-proof" id="btp-payment-proof">
@@ -174,11 +180,70 @@ function btp_render_payment_proof_panel(array $vars): string
             <textarea name="note" id="btp-proof-note" class="form-control" rows="3"></textarea>
         </div>
         <button type="submit" class="btn btn-primary">Upload &amp; Open Ticket</button>
+        <a href="{$supportUrl}" class="btn btn-default btp-payment-proof__support-link">Open Support Instead</a>
+        <p class="help-block">If you cannot upload here, open a support ticket or reply to your invoice email with the receipt screenshot.</p>
         <div class="btp-payment-proof__result" aria-live="polite"></div>
     </form>
 </div>
+HTML;
+}
+
+/**
+ * @param array<string, mixed> $vars
+ */
+function btp_render_invoice_footer(array $vars): string
+{
+    $paymentLabel = json_encode((string) ($vars['btp_payment_label'] ?? ''));
+    if (! is_string($paymentLabel) || $paymentLabel === '') {
+        $paymentLabel = '""';
+    }
+    $panelHtml = '';
+    if (! empty($vars['btp_show_payment_proof'])) {
+        $panelHtml = btp_render_payment_proof_panel($vars);
+    }
+
+    return $panelHtml . <<<HTML
 <script>
 (function () {
+    var paymentLabel = {$paymentLabel};
+
+    function moveProofPanel() {
+        var panel = document.getElementById('btp-payment-proof');
+        var bankDetails = document.querySelector('.btp-bank-details');
+        if (!panel || !bankDetails || panel.dataset.btpPlaced === '1') {
+            return;
+        }
+
+        bankDetails.insertAdjacentElement('afterend', panel);
+        panel.dataset.btpPlaced = '1';
+    }
+
+    function relabelPaymentMethod() {
+        if (!paymentLabel) {
+            return;
+        }
+
+        var select = document.querySelector('select[name="paymentmethod"]');
+        if (!select || !select.value || select.value.indexOf('banktransferpro') !== 0) {
+            return;
+        }
+
+        if (select.options.length === 1) {
+            var summary = document.createElement('div');
+            summary.className = 'btp-payment-method-summary';
+            summary.innerHTML = '<span class="btp-payment-method-summary__label">Pay via</span> <strong></strong>';
+            summary.querySelector('strong').textContent = paymentLabel;
+            select.style.display = 'none';
+            select.insertAdjacentElement('afterend', summary);
+            return;
+        }
+
+        var selectedOption = select.options[select.selectedIndex];
+        if (selectedOption) {
+            selectedOption.text = paymentLabel;
+        }
+    }
+
     function initPaymentProofForm() {
         var form = document.querySelector('#btp-payment-proof form');
         if (!form || form.dataset.btpBound === '1') { return; }
@@ -228,10 +293,16 @@ function btp_render_payment_proof_panel(array $vars): string
         });
     }
 
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', initPaymentProofForm, { once: true });
-    } else {
+    function init() {
+        relabelPaymentMethod();
+        moveProofPanel();
         initPaymentProofForm();
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', init, { once: true });
+    } else {
+        init();
     }
 })();
 </script>
@@ -251,4 +322,26 @@ function btp_payment_proof_footer_html(?string $html = null): string
 function btp_is_supported_gateway(string $gateway): bool
 {
     return $gateway === 'banktransferpro' || str_starts_with($gateway, 'banktransferpro_');
+}
+
+function btp_support_ticket_url(SettingsRepository $settings): string
+{
+    $deptId = max(1, $settings->ticketDepartmentId());
+
+    return 'submitticket.php?step=2&deptid=' . urlencode((string) $deptId);
+}
+
+function btp_resolve_invoice_bank(object $invoice, string $gateway): ?array
+{
+    $repo = new BankRepository();
+    if ($gateway !== 'banktransferpro') {
+        return $repo->findBySlug($gateway);
+    }
+
+    $code = (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice);
+    if ($code === null) {
+        return null;
+    }
+
+    return $repo->findActiveByCurrencyCode($code);
 }

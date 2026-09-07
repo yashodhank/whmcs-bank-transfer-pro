@@ -55,8 +55,32 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label for="btp-account-details">{$_lang.bank_account_details|default:'Bank Account Details'} <span class="text-danger">*</span></label>
-                        <textarea class="form-control" id="btp-account-details" name="account_details" rows="6" required></textarea>
+                        <label for="btp-account-details">{$_lang.bank_account_details|default:'Bank Account Details'}</label>
+                        <textarea class="form-control" id="btp-account-details" name="account_details" rows="6"></textarea>
+                        <p class="help-block">{$_lang.additional_payment_help|default:'Use this for any extra transfer instructions or legacy freeform details.'}</p>
+                    </div>
+                    <hr />
+                    <h5>{$_lang.invoice_payment_block|default:'Invoice Payment Block'}</h5>
+                    <p class="text-muted">{$_lang.invoice_payment_block_help|default:'These optional fields control how the selected bank appears to customers on the invoice page.'}</p>
+                    <div class="form-group">
+                        <label for="btp-invoice-label">{$_lang.invoice_label|default:'Invoice Label'}</label>
+                        <input type="text" class="form-control" id="btp-invoice-label" name="invoice_label" placeholder="{$_lang.invoice_label_placeholder|default:'IDBI Bank - Nanded'}" />
+                    </div>
+                    <div class="form-group">
+                        <label for="btp-upi-id">{$_lang.upi_id|default:'UPI ID'}</label>
+                        <input type="text" class="form-control" id="btp-upi-id" name="upi_id" placeholder="{$_lang.upi_placeholder|default:'securiace.com@idbi'}" />
+                    </div>
+                    <div class="form-group">
+                        <label for="btp-account-name">{$_lang.account_name|default:'Account Name'}</label>
+                        <input type="text" class="form-control" id="btp-account-name" name="account_name" placeholder="{$_lang.account_name_placeholder|default:'SECURIACE TECHNOLOGIES'}" />
+                    </div>
+                    <div class="form-group">
+                        <label for="btp-account-number">{$_lang.account_number|default:'Account Number'}</label>
+                        <input type="text" class="form-control" id="btp-account-number" name="account_number" />
+                    </div>
+                    <div class="form-group">
+                        <label for="btp-ifsc-code">{$_lang.ifsc_code|default:'IFSC / Routing Code'}</label>
+                        <input type="text" class="form-control" id="btp-ifsc-code" name="ifsc_code" />
                     </div>
                 </div>
                 <div class="modal-footer">
