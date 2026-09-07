@@ -40,9 +40,9 @@ final class GatewayRenderer
 
         return <<<HTML
 <div class="btp-bank-details">
-    <div class="btp-bank-details__header">Bank Account Details — {$displayName}</div>
-    <div class="btp-bank-details__body">{$accountDetails}</div>
-    <div class="btp-bank-details__reference"><strong>{$refLabel}:</strong> {$invoiceRef}</div>
+    <p><strong>{$displayName}</strong></p>
+    <p>{$accountDetails}</p>
+    <p><strong>{$refLabel}:</strong> {$invoiceRef}</p>
 </div>
 HTML;
     }

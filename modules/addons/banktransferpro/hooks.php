@@ -32,11 +32,22 @@ function btp_client_stylesheet_link_tag(): string
     return '<link rel="stylesheet" href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" />' . "\n";
 }
 
-add_hook('AdminAreaHeadOutput', 1, static function (): string {
+add_hook('AdminAreaHeadOutput', 1, static function (array $vars = []): string {
+    $filename = (string) ($vars['filename'] ?? '');
+    $module = (string) ($_GET['module'] ?? '');
+    if ($filename !== 'addonmodules' || $module !== 'banktransferpro') {
+        return '';
+    }
+
     return btp_stylesheet_link_tag();
 });
 
-add_hook('ClientAreaHeadOutput', 1, static function (): string {
+add_hook('ClientAreaHeadOutput', 1, static function (array $vars = []): string {
+    $filename = (string) ($vars['filename'] ?? '');
+    if ($filename !== 'viewinvoice') {
+        return '';
+    }
+
     return btp_client_stylesheet_link_tag();
 });
 
@@ -123,12 +134,20 @@ add_hook('ClientAreaPageViewInvoice', 2, static function (array $vars): array {
     }
 
     $html = btp_render_payment_proof_panel($vars);
-    $existing = (string) ($vars['paymentmethod'] ?? '');
+    btp_payment_proof_footer_html($html);
 
     return array_merge($vars, [
         'btp_payment_proof_html' => $html,
-        'paymentmethod' => $existing . $html,
     ]);
+});
+
+add_hook('ClientAreaFooterOutput', 1, static function (array $vars = []): string {
+    $filename = (string) ($vars['filename'] ?? '');
+    if ($filename !== 'viewinvoice') {
+        return '';
+    }
+
+    return btp_payment_proof_footer_html();
 });
 
 /**
@@ -174,7 +193,28 @@ function btp_render_payment_proof_panel(array $vars): string
             var result = form.querySelector('.btp-payment-proof__result');
             var data = new FormData(form);
             fetch(form.action, { method: 'POST', body: data, credentials: 'same-origin' })
-                .then(function (response) { return response.json(); })
+                .then(function (response) {
+                    return response.text().then(function (bodyText) {
+                        var payload = null;
+                        if (bodyText) {
+                            try {
+                                payload = JSON.parse(bodyText);
+                            } catch (error) {
+                                payload = null;
+                            }
+                        }
+                        if (payload && typeof payload.success === 'boolean') {
+                            return payload;
+                        }
+                        var message = 'Upload failed.';
+                        if (response && !response.ok) {
+                            message = 'Unexpected server response (HTTP ' + response.status + ').';
+                        } else if (bodyText) {
+                            message = 'Unexpected non-JSON response: ' + bodyText.substring(0, 160);
+                        }
+                        throw new Error(message);
+                    });
+                })
                 .then(function (payload) {
                     if (payload.success) {
                         result.className = 'btp-payment-proof__result alert alert-success';
@@ -185,9 +225,9 @@ function btp_render_payment_proof_panel(array $vars): string
                         result.textContent = (payload.error && payload.error.message) ? payload.error.message : 'Upload failed.';
                     }
                 })
-                .catch(function () {
+                .catch(function (error) {
                     result.className = 'btp-payment-proof__result alert alert-danger';
-                    result.textContent = 'Upload failed. Please try again.';
+                    result.textContent = (error && error.message) ? error.message : 'Upload failed. Please try again.';
                 });
         });
     }
@@ -200,6 +240,16 @@ function btp_render_payment_proof_panel(array $vars): string
 })();
 </script>
 HTML;
+}
+
+function btp_payment_proof_footer_html(?string $html = null): string
+{
+    static $stored = '';
+    if ($html !== null) {
+        $stored = $html;
+    }
+
+    return $stored;
 }
 
 function btp_is_supported_gateway(string $gateway): bool
