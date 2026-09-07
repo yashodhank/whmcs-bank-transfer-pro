@@ -4,7 +4,7 @@
 | --- | --- | --- | --- |
 | 0 | Branch `fix/admin-form-csrf-whmcs-ux` from updated `origin/main`; WIP carried; evidence folder; roster + SHA | **PASS** | This folder; git branch; uncommitted modal-alert / asset `1.1.1` WIP restored onto the branch |
 | 1 | CSRF/UI contracts locked; MoSCoW | **PASS** | [architecture-lock.md](architecture-lock.md) |
-| 2 | Red PHPUnit contracts exist and fail on pre-fix behavior | pending | `vendor/bin/phpunit` output in [phase-2-red.md](phase-2-red.md) |
+| 2 | Red PHPUnit contracts exist and fail on pre-fix behavior | **PASS (red)** | [phase-2-red.md](phase-2-red.md) — 14 `CsrfUxContract` failures; existing suite green |
 | 3A | Form-encoded mutations; session-only reads; JSON CSRF failures; modal token + delete catch | pending | PHPUnit after 3A |
 | 3B | Settings `WHMCS.admin.default` + PRG + alert inside `.btp-admin-scope` | pending | PHPUnit after 3B |
 | 3C | WHMCS-native admin tabs/lang/FA/scoped CSS/optional sidebar | pending | PHPUnit after 3C |
