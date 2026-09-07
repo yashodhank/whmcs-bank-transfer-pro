@@ -11,6 +11,6 @@
 | 3D | Theme-native `_link`; no `paymentmethod` pollution; viewinvoice-gated proof+CSS | **PASS** | `hooks.php`, `GatewayRenderer.php`, `client.css` |
 | 3E | Client upload CSRF JSON envelope; safe JSON parse; POST-only invoiceid | **PASS** | `UploadController` + proof-form `response.text()` |
 | 4 | Full PHPUnit; browser/API or honest substitute; Reality Checker default NEEDS WORK | **PASS (NEEDS WORK)** | [phase-4-hardening.md](phase-4-hardening.md) — PHPUnit 39/39; live WHMCS 403 |
-| 5 | graphify update; audit ledger; PR to `main`; no self-merge | pending | PR URL in [phase-5-rollout.md](phase-5-rollout.md) |
+| 5 | graphify update; audit ledger; PR to `main`; no self-merge | **PASS** | [phase-5-rollout.md](phase-5-rollout.md) — https://github.com/yashodhank/whmcs-bank-transfer-pro/pull/7 |
 
 Permissions held: no merge, no production deploys, no `whmcs-prod-new` edits, no commit to `main`.
