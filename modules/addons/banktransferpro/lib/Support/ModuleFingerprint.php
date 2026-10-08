@@ -12,6 +12,7 @@ final class ModuleFingerprint
     public const VERSION = '1.1.3';
 
     public const CAPABILITY_INVOICE_CURRENCY_VIA_CLIENT = 'invoice_currency_via_client';
+    public const CAPABILITY_INSTRUCTION_PACKS = 'instruction_packs';
 
     /**
      * @return list<string>
@@ -20,6 +21,7 @@ final class ModuleFingerprint
     {
         return [
             self::CAPABILITY_INVOICE_CURRENCY_VIA_CLIENT,
+            self::CAPABILITY_INSTRUCTION_PACKS,
         ];
     }
 
