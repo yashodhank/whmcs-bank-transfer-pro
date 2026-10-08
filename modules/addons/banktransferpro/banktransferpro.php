@@ -13,6 +13,7 @@ use BankTransferPro\Client\UploadController;
 use BankTransferPro\Migration\MigrationRunner;
 use BankTransferPro\Migration\WhmcsCapsuleExecutor;
 use BankTransferPro\Repository\SettingsRepository;
+use BankTransferPro\Support\ModuleFingerprint;
 use BankTransferPro\Support\RuntimeEnvironment;
 
 require_once __DIR__ . '/lib/Bootstrap.php';
@@ -22,7 +23,7 @@ function banktransferpro_config(): array
     return [
         'name' => 'Bank Transfer Pro',
         'description' => 'Multi-currency bank transfer gateways with auto-generated payment modules, invoice bank details, and client payment proof upload.',
-        'version' => '1.1.2',
+        'version' => '1.1.3',
         'author' => 'Securiace Technologies',
         'language' => 'english',
         'fields' => [],
@@ -33,6 +34,14 @@ function banktransferpro_activate(): array
 {
     try {
         banktransferpro_bootstrap(true);
+
+        $fingerprintFailure = ModuleFingerprint::failureReason();
+        if ($fingerprintFailure !== null) {
+            return [
+                'status' => 'error',
+                'description' => 'Activation refused: ' . $fingerprintFailure,
+            ];
+        }
 
         (new SettingsRepository())->seedDefaults();
 
@@ -80,6 +89,14 @@ function banktransferpro_deactivate(): array
 function banktransferpro_output(array $vars): void
 {
     banktransferpro_bootstrap(true);
+
+    $fingerprintFailure = ModuleFingerprint::failureReason();
+    if ($fingerprintFailure !== null) {
+        echo '<div class="alert alert-danger"><strong>Bank Transfer Pro install check failed.</strong> '
+            . htmlspecialchars($fingerprintFailure, ENT_QUOTES, 'UTF-8')
+            . '</div>';
+    }
+
     (new DashboardController())->handle($vars);
 }
 
