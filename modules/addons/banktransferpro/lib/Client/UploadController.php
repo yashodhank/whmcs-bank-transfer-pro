@@ -185,7 +185,7 @@ final class UploadController
     private function resolveBankForInvoice(object $invoice, string $gateway): ?array
     {
         if ($gateway !== 'banktransferpro') {
-            return $this->banks->findBySlug($gateway);
+            return $this->banks->findActiveBySlug($gateway);
         }
 
         $code = (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice);
