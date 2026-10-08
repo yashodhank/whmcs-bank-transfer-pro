@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace BankTransferPro\Packs;
 
+use BankTransferPro\Packs\Qr\QrCode;
+
 /**
  * Renders an InstructionPackEngine result as invoice/preview HTML:
  * Pay via {bank} -> exact amount -> payment reference -> ONE recommended pack ->
@@ -44,7 +46,7 @@ final class PackRenderer
         $recommended = is_string($packSet['recommended'] ?? null) ? $packSet['recommended'] : '';
 
         if ($recommended !== '' && isset($packs[$recommended])) {
-            $html .= self::pack($packs[$recommended], true);
+            $html .= self::pack($packs[$recommended], true, $packSet, $paymentLabel, $invoiceRefLabel);
         }
 
         $alternatives = array_values(array_filter(
@@ -54,7 +56,7 @@ final class PackRenderer
         if ($alternatives !== []) {
             $html .= '<details class="btp-pack-alt"><summary>Paying another way?</summary>';
             foreach ($alternatives as $id) {
-                $html .= self::pack($packs[$id], false);
+                $html .= self::pack($packs[$id], false, $packSet, $paymentLabel, $invoiceRefLabel);
             }
             $html .= '</details>';
         }
@@ -101,8 +103,9 @@ final class PackRenderer
 
     /**
      * @param array<string, mixed> $pack
+     * @param array<string, mixed> $packSet
      */
-    private static function pack(array $pack, bool $recommended): string
+    private static function pack(array $pack, bool $recommended, array $packSet, string $paymentLabel, string $invoiceRefLabel): string
     {
         $id = (string) ($pack['id'] ?? '');
         $class = 'btp-pack btp-pack--' . self::e($id) . ($recommended ? ' btp-pack--recommended' : '');
@@ -117,11 +120,14 @@ final class PackRenderer
         if ($subtitle !== '') {
             $html .= '<div class="btp-pack__subtitle">' . self::e($subtitle) . '</div>';
         }
+        $html .= self::actions($pack, $packSet, $paymentLabel);
         $html .= '</header>';
 
         foreach ($pack['warnings'] ?? [] as $warning) {
             $html .= '<div class="alert alert-warning btp-pack__warning">' . self::e((string) $warning) . '</div>';
         }
+
+        $html .= self::qrCodes($pack);
 
         foreach ($pack['fields'] ?? [] as $field) {
             $html .= self::fieldRow((string) ($field['label'] ?? ''), (string) ($field['value'] ?? ''));
@@ -150,7 +156,62 @@ final class PackRenderer
             $html .= '<p class="btp-pack__timeline"><strong>Timeline:</strong> ' . self::e($timeline) . '</p>';
         }
 
+        if ($id === InstructionPackEngine::PACK_WIRE) {
+            $html .= PackChecklist::sheet($packSet, $pack, $paymentLabel, $invoiceRefLabel);
+        }
+
         return $html . '</section>';
+    }
+
+    /**
+     * Treasury helpers: copy every field at once; print a tick-box checklist for the wire pack.
+     *
+     * @param array<string, mixed> $pack
+     * @param array<string, mixed> $packSet
+     */
+    private static function actions(array $pack, array $packSet, string $paymentLabel): string
+    {
+        if (($pack['fields'] ?? []) === []) {
+            return '';
+        }
+
+        $html = '<div class="btp-pack__actions">'
+            . ' <button type="button" class="btn btn-default btn-xs btp-copy btp-copy--all" data-btp-copy="'
+            . self::e(PackChecklist::text($packSet, $pack, $paymentLabel)) . '" aria-label="Copy all payment details">Copy all details</button>';
+
+        if (($pack['id'] ?? '') === InstructionPackEngine::PACK_WIRE) {
+            $html .= ' <button type="button" class="btn btn-default btn-xs btp-print" data-btp-print="wire">Print wire checklist</button>';
+        }
+
+        return $html . '</div>';
+    }
+
+    /**
+     * @param array<string, mixed> $pack
+     */
+    private static function qrCodes(array $pack): string
+    {
+        $html = '';
+        foreach ($pack['qr'] ?? [] as $qr) {
+            $payload = (string) ($qr['payload'] ?? '');
+            if ($payload === '' || ! QrCode::fits($payload)) {
+                continue;
+            }
+
+            $label = (string) ($qr['label'] ?? 'Payment') . ' QR code';
+            $html .= '<div class="btp-qr" data-btp-qr="' . self::e((string) ($qr['scheme'] ?? '')) . '">'
+                . '<div class="btp-qr__code">' . QrCode::svg($payload, $label) . '</div>'
+                . '<div class="btp-qr__side"><div class="btp-qr__caption">' . self::e((string) ($qr['caption'] ?? '')) . '</div>';
+
+            $deeplink = (string) ($qr['deeplink'] ?? '');
+            if ($deeplink !== '') {
+                $html .= '<a class="btn btn-default btn-sm btp-qr__open" href="' . self::e($deeplink) . '">Open in UPI app</a>';
+            }
+
+            $html .= '</div></div>';
+        }
+
+        return $html;
     }
 
     private static function fieldRow(string $label, string $value): string

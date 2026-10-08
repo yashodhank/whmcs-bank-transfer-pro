@@ -20,6 +20,8 @@
         <li>Clients see bank account details on invoices when they select the matching Bank Transfer Pro gateway.</li>
         <li>Each bank is a receive profile. Tick local transfer, instant payment and/or international wire; clients see one recommended instruction pack and a shared payment reference they must quote with their transfer.</li>
         <li>Clients abroad only see the international wire pack (SWIFT/BIC, address, charge code OUR). Instant aliases such as UPI are never shown for wires.</li>
+        <li>Instant packs show a scannable QR code for UPI (India), PayNow (Singapore) and Pix (Brazil); other aliases show copy fields only. Every pack has <em>Copy all details</em>; the international wire pack also has a printable checklist for treasury teams.</li>
+        <li>Invoice emails: enable <em>Invoice emails</em> on the Info tab to add the recommended pack and payment reference to the stock invoice templates, or use the merge fields <code>{literal}{$btp_payment_instructions}{/literal}</code> / <code>{literal}{$btp_payment_reference}{/literal}</code> in your own templates.</li>
         <li>Clients can upload payment proof from unpaid invoices; the addon opens a support ticket with the attachment.</li>
     </ul>
 

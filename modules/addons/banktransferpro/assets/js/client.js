@@ -99,6 +99,35 @@
         });
     }
 
+    // Prints only the wire checklist: the sheet is parked directly under <body> for the
+    // duration of the print job so theme layout/overflow can not clip it, then put back.
+    function initPrintChecklist() {
+        document.addEventListener('click', function (event) {
+            var button = event.target && event.target.closest ? event.target.closest('.btp-print') : null;
+            if (!button) { return; }
+            var pack = button.closest('.btp-pack');
+            var sheet = pack ? pack.querySelector('.btp-print-sheet') : null;
+            if (!sheet) { return; }
+
+            var parent = sheet.parentNode;
+            var next = sheet.nextSibling;
+            var restore = function () {
+                window.removeEventListener('afterprint', restore);
+                sheet.classList.remove('is-active');
+                document.body.classList.remove('btp-printing');
+                if (sheet.parentNode !== parent && parent.isConnected) {
+                    parent.insertBefore(sheet, next);
+                }
+            };
+
+            document.body.appendChild(sheet);
+            sheet.classList.add('is-active');
+            document.body.classList.add('btp-printing');
+            window.addEventListener('afterprint', restore);
+            window.print();
+        });
+    }
+
     function initPaymentProofForm() {
         var form = document.querySelector('#btp-payment-proof form');
         if (!form || form.dataset.btpBound === '1') { return; }
@@ -156,6 +185,7 @@
     }
 
     initCopyButtons();
+    initPrintChecklist();
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init, { once: true });

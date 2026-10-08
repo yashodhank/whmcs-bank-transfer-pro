@@ -7,13 +7,14 @@ if (! defined('WHMCS')) {
 }
 
 if (! defined('BTP_ADDON_ASSET_VERSION')) {
-    define('BTP_ADDON_ASSET_VERSION', '1.2.0');
+    define('BTP_ADDON_ASSET_VERSION', '1.2.1');
 }
 
 require_once __DIR__ . '/lib/Bootstrap.php';
 
 use BankTransferPro\Bootstrap;
 use BankTransferPro\Client\ProofPanel;
+use BankTransferPro\Email\InvoiceEmailRenderer;
 use BankTransferPro\Packs\InstructionPackEngine;
 use BankTransferPro\Packs\PayerContext;
 use BankTransferPro\Repository\BankRepository;
@@ -184,6 +185,14 @@ add_hook('InvoiceCreation', 1, static function (array $vars): void {
     }
 });
 
+/**
+ * Invoice email merge fields. The stock invoice templates reference them once the admin
+ * enables "Invoice emails" on the Info tab (or pastes the snippet from the Documentation tab).
+ */
+add_hook('EmailPreSend', 1, static function (array $vars): array {
+    return btp_invoice_email_merge_fields($vars);
+});
+
 add_hook('ClientAreaPageViewInvoice', 2, static function (array $vars): array {
     if (empty($vars['btp_payment_label']) && empty($vars['btp_show_payment_proof'])) {
         return $vars;
@@ -272,4 +281,78 @@ function btp_resolve_invoice_bank(object $invoice, string $gateway): ?array
     }
 
     return $repo->findActiveByCurrencyCode($code);
+}
+
+/**
+ * @param array<string, mixed> $vars EmailPreSend hook vars (messagename, relid, ...)
+ * @return array<string, string>
+ */
+function btp_invoice_email_merge_fields(array $vars): array
+{
+    $invoiceId = (int) ($vars['relid'] ?? 0);
+    $template = (string) ($vars['messagename'] ?? '');
+    if ($invoiceId <= 0 || $template === '') {
+        return [];
+    }
+
+    try {
+        Bootstrap::init();
+
+        if (! Capsule::table('tblemailtemplates')->where('name', $template)->where('type', 'invoice')->exists()) {
+            return [];
+        }
+
+        $invoice = Capsule::table('tblinvoices')->where('id', $invoiceId)->first();
+        if ($invoice === null || ! btp_is_supported_gateway((string) $invoice->paymentmethod)) {
+            return [];
+        }
+
+        $bank = btp_resolve_invoice_bank($invoice, (string) $invoice->paymentmethod);
+        if ($bank === null) {
+            return [];
+        }
+
+        $client = Capsule::table('tblclients')->where('id', (int) $invoice->userid)->first(['country']);
+        $packSet = InstructionPackEngine::build(
+            $bank,
+            PayerContext::fromClientDetails(['country' => $client !== null ? (string) $client->country : '']),
+            [
+                'id' => $invoiceId,
+                'number' => (string) ($invoice->invoicenum ?? '') !== '' ? (string) $invoice->invoicenum : (string) $invoiceId,
+                'amount' => btp_invoice_balance_due($invoice),
+                'currency' => (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice),
+            ]
+        );
+
+        return InvoiceEmailRenderer::mergeFields(
+            $packSet,
+            BankRepository::buildInvoiceLabel($bank),
+            btp_invoice_url($invoiceId)
+        );
+    } catch (Throwable $exception) {
+        if (function_exists('logActivity')) {
+            logActivity('Bank Transfer Pro: invoice email merge fields failed: ' . $exception->getMessage());
+        }
+
+        return [];
+    }
+}
+
+/**
+ * Outstanding balance: invoice total less payments/credit already applied to it.
+ */
+function btp_invoice_balance_due(object $invoice): ?string
+{
+    $paid = (float) Capsule::table('tblaccounts')->where('invoiceid', (int) $invoice->id)->sum('amountin')
+        - (float) Capsule::table('tblaccounts')->where('invoiceid', (int) $invoice->id)->sum('amountout');
+    $balance = round((float) $invoice->total - $paid, 2);
+
+    return $balance > 0 ? number_format($balance, 2, '.', '') : null;
+}
+
+function btp_invoice_url(int $invoiceId): string
+{
+    $base = class_exists(\WHMCS\Config\Setting::class) ? (string) \WHMCS\Config\Setting::getValue('SystemURL') : '';
+
+    return $base === '' ? '' : rtrim($base, '/') . '/viewinvoice.php?id=' . $invoiceId;
 }

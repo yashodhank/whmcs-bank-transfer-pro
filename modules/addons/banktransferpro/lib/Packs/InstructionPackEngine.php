@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace BankTransferPro\Packs;
 
+use BankTransferPro\Packs\Qr\AliasQrPayload;
+
 /**
  * Builds copy-optimised Instruction Packs for one bank + payer + invoice and picks
  * ONE recommended pack. Everything else is an alternative behind "Paying another way?".
@@ -73,7 +75,7 @@ final class InstructionPackEngine
             }
         }
         if (in_array(SchemeRegistry::CAP_INSTANT, $capabilities, true)) {
-            $pack = self::instantPack($bank, $country, $identifiers);
+            $pack = self::instantPack($bank, $country, $identifiers, $reference, $amount, $invoiceCurrency ?? $bankCurrency);
             if ($pack !== null) {
                 $ready[self::PACK_INSTANT] = $pack;
             }
@@ -224,7 +226,7 @@ final class InstructionPackEngine
      * @param array<string, string> $identifiers
      * @return array<string, mixed>|null
      */
-    private static function instantPack(array $bank, string $country, array $identifiers): ?array
+    private static function instantPack(array $bank, string $country, array $identifiers, string $reference, ?string $amount, ?string $currency): ?array
     {
         $fields = [];
         $labels = [];
@@ -249,7 +251,47 @@ final class InstructionPackEngine
             $notes[] = $extra;
         }
 
-        return self::pack(self::PACK_INSTANT, 'Pay in seconds', implode(' / ', $labels), $fields, [], $notes);
+        $pack = self::pack(self::PACK_INSTANT, 'Pay in seconds', implode(' / ', $labels), $fields, [], $notes);
+        $pack['qr'] = self::qrCodes($bank, $identifiers, $reference, $amount, $currency);
+
+        return $pack;
+    }
+
+    /**
+     * Scannable QR codes for the instant aliases that have a published payload format
+     * (UPI, PayNow, Pix). Instant pack only: the wire pack never carries a QR or alias.
+     *
+     * @param array<string, mixed> $bank
+     * @param array<string, string> $identifiers
+     * @return list<array{scheme: string, label: string, caption: string, payload: string, deeplink: ?string}>
+     */
+    private static function qrCodes(array $bank, array $identifiers, string $reference, ?string $amount, ?string $currency): array
+    {
+        $captions = [
+            'upi' => 'Scan with any UPI app',
+            'paynow' => 'Scan with the PayNow option in your banking app',
+            'pix' => 'Scan with the Pix option in your banking app',
+        ];
+
+        $codes = [];
+        foreach (AliasQrPayload::supportedSchemes() as $scheme) {
+            if (! isset($identifiers[$scheme])) {
+                continue;
+            }
+            $built = AliasQrPayload::build($scheme, $identifiers[$scheme], (string) ($bank['account_name'] ?? ''), $amount, $currency, $reference);
+            if ($built === null) {
+                continue;
+            }
+            $codes[] = [
+                'scheme' => $scheme,
+                'label' => SchemeRegistry::get($scheme)['label'] ?? strtoupper($scheme),
+                'caption' => $captions[$scheme],
+                'payload' => $built['payload'],
+                'deeplink' => $built['deeplink'],
+            ];
+        }
+
+        return $codes;
     }
 
     /**
@@ -324,6 +366,7 @@ final class InstructionPackEngine
             'notes' => $notes,
             'warnings' => [],
             'timeline' => null,
+            'qr' => [],
             'recommended' => false,
         ];
     }

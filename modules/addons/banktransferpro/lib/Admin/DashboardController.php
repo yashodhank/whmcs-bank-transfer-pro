@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace BankTransferPro\Admin;
 
 use BankTransferPro\Bootstrap;
+use BankTransferPro\Email\EmailTemplateInjector;
 use BankTransferPro\Packs\CountryList;
 use BankTransferPro\Packs\SchemeRegistry;
 use BankTransferPro\Repository\SettingsRepository;
@@ -27,7 +28,11 @@ final class DashboardController
         }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST' && $tab === 'info') {
-            $this->saveSettings($vars);
+            if (isset($_POST['btp_email_action'])) {
+                $this->updateEmailTemplates($vars);
+            } else {
+                $this->saveSettings($vars);
+            }
         }
 
         $smarty = new Smarty();
@@ -45,6 +50,10 @@ final class DashboardController
         $smarty->assign('_lang', is_array($vars['_lang'] ?? null) ? $vars['_lang'] : []);
         $smarty->assign('settingsSaved', isset($_GET['saved']));
         $smarty->assign('settingsError', $this->settingsError);
+        $smarty->assign('emailTemplates', $tab === 'info' ? $this->emailTemplateStatus() : ['templates' => 0, 'injected' => 0]);
+        $smarty->assign('emailResult', (string) ($_GET['email'] ?? ''));
+        $smarty->assign('emailCount', (int) ($_GET['count'] ?? 0));
+        $smarty->assign('emailSnippet', EmailTemplateInjector::snippet());
 
         $template = match ($tab) {
             'info' => 'info',
@@ -60,6 +69,52 @@ final class DashboardController
         echo '<div class="btp-admin-scope">';
         $smarty->display($templateDir . '/' . $template . '.tpl');
         echo '</div>';
+    }
+
+    /**
+     * @return array{templates: int, injected: int}
+     */
+    private function emailTemplateStatus(): array
+    {
+        try {
+            return (new EmailTemplateInjector())->status();
+        } catch (\Throwable) {
+            return ['templates' => 0, 'injected' => 0];
+        }
+    }
+
+    private function updateEmailTemplates(array $vars): void
+    {
+        $valid = true;
+        if (function_exists('check_token')) {
+            try {
+                $valid = (bool) check_token('WHMCS.admin.default', $_POST['token'] ?? null);
+            } catch (\Throwable) {
+                $valid = false;
+            }
+        }
+
+        if (! $valid) {
+            $this->settingsError = 'Invalid security token. Email templates were not changed.';
+
+            return;
+        }
+
+        $injector = new EmailTemplateInjector();
+        $install = (string) $_POST['btp_email_action'] === 'install';
+
+        try {
+            $count = $install ? $injector->install() : $injector->uninstall();
+        } catch (\Throwable $exception) {
+            $this->settingsError = 'Could not update the email templates: ' . $exception->getMessage();
+
+            return;
+        }
+
+        $modulelink = (string) ($vars['modulelink'] ?? '');
+        $separator = str_contains($modulelink, '?') ? '&' : '?';
+        header('Location: ' . $modulelink . $separator . 'tab=info&email=' . ($install ? 'installed' : 'removed') . '&count=' . $count);
+        exit;
     }
 
     private function saveSettings(array $vars): void
