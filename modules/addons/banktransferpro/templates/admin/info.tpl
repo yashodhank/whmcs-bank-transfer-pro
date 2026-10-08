@@ -89,3 +89,37 @@
         </div>
     </div>
 </form>
+
+<hr />
+
+<h3>Invoice emails</h3>
+<p class="text-muted">
+    Add the recommended payment instructions and the payment reference to the stock invoice emails
+    (Invoice Created, Payment Reminder and the three Overdue Notices) for clients paying by Bank Transfer Pro.
+    Only the one recommended pack is included; every other way to pay stays on the invoice page.
+</p>
+
+{if $emailResult == 'installed'}
+    <div class="alert alert-success">Invoice email templates updated ({$emailCount|escape}).</div>
+{elseif $emailResult == 'removed'}
+    <div class="alert alert-success">Bank Transfer Pro block removed from {$emailCount|escape} invoice email template(s).</div>
+{/if}
+
+<p>
+    Status: <strong>{$emailTemplates.injected|escape}</strong> of {$emailTemplates.templates|escape} invoice email templates include the payment instructions.
+</p>
+
+<form method="post" action="{$modulelink}&tab=info" class="btp-email-form">
+    <input type="hidden" name="token" value="{$csrfToken}" />
+    <button type="submit" name="btp_email_action" value="install" class="btn btn-default">Add to invoice emails</button>
+    <button type="submit" name="btp_email_action" value="remove" class="btn btn-default">Remove from invoice emails</button>
+</form>
+
+<p class="help-block">
+    Prefer to edit the templates yourself? Place this where the instructions should appear (Configuration &rarr; System Settings &rarr; Email Templates):
+</p>
+<pre class="btp-email-snippet">{$emailSnippet|escape}</pre>
+<p class="help-block">
+    Also available: <code>{literal}{$btp_payment_reference}{/literal}</code>, <code>{literal}{$btp_payment_pack}{/literal}</code>
+    and the plain-text <code>{literal}{$btp_payment_instructions_text}{/literal}</code>.
+</p>
