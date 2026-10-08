@@ -18,6 +18,8 @@
         <li>Mutable environments create a dedicated gateway per bank record; immutable deployments use the static <code>banktransferpro</code> gateway and resolve bank details from invoice currency.</li>
         <li>Immutable deployments support one active bank per currency. Edit the existing bank record to change details.</li>
         <li>Clients see bank account details on invoices when they select the matching Bank Transfer Pro gateway.</li>
+        <li>Each bank is a receive profile. Tick local transfer, instant payment and/or international wire; clients see one recommended instruction pack and a shared payment reference they must quote with their transfer.</li>
+        <li>Clients abroad only see the international wire pack (SWIFT/BIC, address, charge code OUR). Instant aliases such as UPI are never shown for wires.</li>
         <li>Clients can upload payment proof from unpaid invoices; the addon opens a support ticket with the attachment.</li>
     </ul>
 

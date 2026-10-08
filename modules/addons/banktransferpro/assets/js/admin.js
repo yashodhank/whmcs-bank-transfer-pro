@@ -136,12 +136,16 @@
         banks.forEach(function (bank) {
             var row = document.createElement('tr');
             var detailsRaw = String(bank.account_details || bank.account_number || bank.upi_id || '');
+            var badges = (bank.capabilities || []).map(function (cap) {
+                return '<span class="btp-cap-badge">' + escapeHtml(capabilityLabel(cap)) + '</span>';
+            }).join('');
+            var country = bank.country_code ? '<span class="btp-cap-badge">' + escapeHtml(bank.country_code) + '</span>' : '';
             row.innerHTML =
                 '<td>' + escapeHtml(bank.id) + '</td>' +
                 '<td><code>' + escapeHtml(bank.gateway_slug) + '</code></td>' +
                 '<td>' + escapeHtml(bank.display_name) + '</td>' +
                 '<td class="btp-account-details" title="' + escapeHtml(detailsRaw) + '">' +
-                    escapeHtml(truncate(detailsRaw, 80)) +
+                    country + badges + ' ' + escapeHtml(truncate(detailsRaw, 60)) +
                 '</td>' +
                 '<td>' + escapeHtml(bank.currency_code) + '</td>' +
                 '<td class="text-right btp-actions">' +
@@ -182,26 +186,250 @@
         }
     }
 
+    var CAPABILITIES = ['local_transfer', 'instant_alias', 'international_wire'];
+    var CAPABILITY_LABELS = { local_transfer: 'Local', instant_alias: 'Instant', international_wire: 'Wire' };
+    var registry = config.registry || { schemes: [], ibanCountries: [], capabilities: CAPABILITIES };
+    var wizard = { step: 1, identifiers: {}, packNotes: {} };
+
+    function capabilityLabel(cap) {
+        return CAPABILITY_LABELS[cap] || cap;
+    }
+
+    function byId(id) {
+        return document.getElementById(id);
+    }
+
+    function enabledCapabilities() {
+        return CAPABILITIES.filter(function (cap) {
+            var box = document.querySelector('.btp-cap-checkbox[data-btp-cap="' + cap + '"]');
+            return box && box.checked;
+        });
+    }
+
+    function schemesFor(cap, country) {
+        return (registry.schemes || []).filter(function (scheme) {
+            if (scheme.capabilities.indexOf(cap) === -1) {
+                return false;
+            }
+            return !scheme.countries.length || scheme.countries.indexOf(country) !== -1;
+        });
+    }
+
+    function schemeContainer(cap) {
+        return cap === 'international_wire' ? byId('btp-scheme-slot-international_wire') : byId('btp-cap-fields-' + cap);
+    }
+
+    function readSchemeInputs() {
+        document.querySelectorAll('.btp-scheme-input').forEach(function (input) {
+            wizard.identifiers[input.getAttribute('data-scheme')] = input.value;
+        });
+    }
+
+    function renderSchemeFields() {
+        readSchemeInputs();
+        var country = byId('btp-country-code').value;
+        var rendered = {};
+        var enabled = enabledCapabilities();
+
+        CAPABILITIES.forEach(function (cap) {
+            var wrapper = byId('btp-cap-fields-' + cap);
+            var holder = schemeContainer(cap);
+            var on = enabled.indexOf(cap) !== -1;
+            wrapper.style.display = on ? 'block' : 'none';
+            holder.innerHTML = '';
+            if (!on) {
+                return;
+            }
+            var schemes = schemesFor(cap, country);
+            if (!schemes.length && cap === 'instant_alias') {
+                holder.innerHTML = '<p class="text-muted">No instant-payment scheme is available for this country yet. Use local transfer or international wire.</p>';
+            }
+            schemes.forEach(function (scheme) {
+                if (rendered[scheme.id]) {
+                    return;
+                }
+                rendered[scheme.id] = true;
+                var group = document.createElement('div');
+                group.className = 'form-group';
+                group.innerHTML =
+                    '<label for="btp-scheme-' + escapeHtml(scheme.id) + '">' + escapeHtml(scheme.label) + '</label>' +
+                    '<input type="text" class="form-control btp-scheme-input" autocomplete="off" data-scheme="' + escapeHtml(scheme.id) + '" id="btp-scheme-' + escapeHtml(scheme.id) + '" placeholder="' + escapeHtml(scheme.placeholder || '') + '" />' +
+                    '<p class="help-block">' + escapeHtml(scheme.help || '') + '</p>';
+                group.querySelector('input').value = wizard.identifiers[scheme.id] || '';
+                holder.appendChild(group);
+            });
+        });
+
+        document.querySelectorAll('.btp-policy--wire').forEach(function (el) {
+            el.style.display = enabled.indexOf('international_wire') !== -1 ? '' : 'none';
+        });
+        document.querySelectorAll('.btp-policy--instant').forEach(function (el) {
+            el.style.display = enabled.indexOf('instant_alias') !== -1 ? '' : 'none';
+        });
+    }
+
+    function collectIdentifiers() {
+        var ids = {};
+        document.querySelectorAll('.btp-scheme-input').forEach(function (input) {
+            var value = input.value.trim();
+            if (value !== '') {
+                ids[input.getAttribute('data-scheme')] = value;
+            }
+        });
+        return ids;
+    }
+
+    function buildPayload() {
+        var notes = Object.assign({}, wizard.packNotes, { prefer_instant: byId('btp-prefer-instant').checked });
+        return {
+            bank_name: byId('btp-bank-name').value,
+            branch_name: byId('btp-branch-name').value,
+            currency_code: byId('btp-currency-code').value,
+            country_code: byId('btp-country-code').value,
+            account_details: byId('btp-account-details').value,
+            invoice_label: byId('btp-invoice-label').value,
+            account_name: byId('btp-account-name').value,
+            account_number: byId('btp-account-number').value,
+            capabilities: enabledCapabilities().join(','),
+            identifiers: JSON.stringify(collectIdentifiers()),
+            beneficiary_address: byId('btp-beneficiary-address').value,
+            bank_address: byId('btp-bank-address').value,
+            intermediary_bic: byId('btp-intermediary-bic').value,
+            prefer_charge_code: byId('btp-prefer-charge-code').value,
+            accept_fx_receive: byId('btp-accept-fx').checked ? 1 : 0,
+            wire_purpose_hint: byId('btp-wire-purpose-hint').value,
+            prefer_instant: byId('btp-prefer-instant').checked ? 1 : 0,
+            pack_notes: JSON.stringify(notes)
+        };
+    }
+
+    function showStep(step) {
+        wizard.step = step;
+        document.querySelectorAll('.btp-wizard-step').forEach(function (el) {
+            el.style.display = parseInt(el.getAttribute('data-btp-step'), 10) === step ? 'block' : 'none';
+        });
+        document.querySelectorAll('#btp-wizard-steps li').forEach(function (li) {
+            li.classList.toggle('active', parseInt(li.getAttribute('data-btp-goto'), 10) === step);
+        });
+        byId('btp-wizard-back').style.display = step > 1 ? '' : 'none';
+        byId('btp-wizard-next').style.display = step < 5 ? '' : 'none';
+        byId('btp-save-bank-btn').style.display = step === 5 ? '' : 'none';
+        if (step === 3 || step === 4) {
+            renderSchemeFields();
+        }
+    }
+
+    function validateStep(step) {
+        if (step === 1) {
+            if (!byId('btp-country-code').value) {
+                return 'Select the country where this bank account is held.';
+            }
+            if (!byId('btp-currency-code').value) {
+                return 'Select a currency.';
+            }
+        }
+        if (step === 2 && !byId('btp-bank-name').value.trim()) {
+            return 'Bank name is required.';
+        }
+        if (step === 3 && !enabledCapabilities().length && !byId('btp-account-details').value.trim()) {
+            return 'Choose at least one way clients can pay.';
+        }
+        return '';
+    }
+
+    function loadPreview() {
+        var target = byId('btp-preview');
+        target.innerHTML = '<p class="text-muted">Building preview&hellip;</p>';
+        return apiRequest('preview', 'POST', buildPayload()).then(function (response) {
+            if (!response.success) {
+                throw new Error(response.error ? response.error.message : 'Preview failed.');
+            }
+            target.innerHTML = '';
+            (response.data.previews || []).forEach(function (preview) {
+                var block = document.createElement('div');
+                block.className = 'btp-preview';
+                block.innerHTML = '<h5></h5><div class="btp-preview__body"></div>';
+                block.querySelector('h5').textContent = preview.title;
+                block.querySelector('.btp-preview__body').innerHTML = preview.html;
+                target.appendChild(block);
+            });
+        });
+    }
+
+    function goToStep(step) {
+        hideAlert('modal');
+        if (step > wizard.step) {
+            for (var s = wizard.step; s < step; s++) {
+                var problem = validateStep(s);
+                if (problem) {
+                    showStep(s);
+                    showAlert('danger', problem, 'modal');
+                    return;
+                }
+            }
+        }
+        if (step === 5) {
+            readSchemeInputs();
+            loadPreview().then(function () {
+                showStep(5);
+            }).catch(function (error) {
+                showStep(4);
+                showAlert('danger', error && error.message ? error.message : 'Preview failed.', 'modal');
+            });
+            return;
+        }
+        showStep(step);
+    }
+
+    function applyDefaultCapabilities() {
+        if (enabledCapabilities().length) {
+            return;
+        }
+        var country = byId('btp-country-code').value;
+        byId('btp-cap-local').checked = true;
+        if (country === 'IN') {
+            byId('btp-cap-instant').checked = true;
+        }
+    }
+
     function resetForm() {
-        var form = document.getElementById('btp-bank-form');
+        var form = byId('btp-bank-form');
         if (form) {
             form.reset();
         }
-        document.getElementById('btp-bank-id').value = '';
+        byId('btp-bank-id').value = '';
+        wizard.identifiers = {};
+        wizard.packNotes = {};
+        document.querySelectorAll('.btp-cap-checkbox').forEach(function (box) { box.checked = false; });
+        byId('btp-preview').innerHTML = '';
         hideAlert('modal');
+        showStep(1);
     }
 
     function fillForm(bank) {
-        document.getElementById('btp-bank-id').value = bank.id;
-        document.getElementById('btp-bank-name').value = bank.bank_name;
-        document.getElementById('btp-branch-name').value = bank.branch_name;
-        document.getElementById('btp-currency-code').value = bank.currency_code;
-        document.getElementById('btp-account-details').value = bank.account_details;
-        document.getElementById('btp-invoice-label').value = bank.invoice_label || '';
-        document.getElementById('btp-upi-id').value = bank.upi_id || '';
-        document.getElementById('btp-account-name').value = bank.account_name || '';
-        document.getElementById('btp-account-number').value = bank.account_number || '';
-        document.getElementById('btp-ifsc-code').value = bank.ifsc_code || '';
+        byId('btp-bank-id').value = bank.id;
+        byId('btp-bank-name').value = bank.bank_name || '';
+        byId('btp-branch-name').value = bank.branch_name || '';
+        byId('btp-currency-code').value = bank.currency_code || '';
+        byId('btp-country-code').value = bank.country_code || '';
+        byId('btp-account-details').value = bank.account_details || '';
+        byId('btp-invoice-label').value = bank.invoice_label || '';
+        byId('btp-account-name').value = bank.account_name || '';
+        byId('btp-account-number').value = bank.account_number || '';
+        byId('btp-beneficiary-address').value = bank.beneficiary_address || '';
+        byId('btp-bank-address').value = bank.bank_address || '';
+        byId('btp-intermediary-bic').value = bank.intermediary_bic || '';
+        byId('btp-prefer-charge-code').value = bank.prefer_charge_code || 'OUR';
+        byId('btp-wire-purpose-hint').value = bank.wire_purpose_hint || '';
+        byId('btp-accept-fx').checked = !!bank.accept_fx_receive;
+        wizard.identifiers = Object.assign({}, bank.identifiers || {});
+        wizard.packNotes = Object.assign({}, bank.pack_notes || {});
+        byId('btp-prefer-instant').checked = !!wizard.packNotes.prefer_instant;
+        document.querySelectorAll('.btp-cap-checkbox').forEach(function (box) {
+            box.checked = (bank.capabilities || []).indexOf(box.getAttribute('data-btp-cap')) !== -1;
+        });
+        hideAlert('modal');
+        showStep(1);
     }
 
     function initAdminPage() {
@@ -288,19 +516,14 @@
         if (form) {
             form.addEventListener('submit', function (event) {
                 event.preventDefault();
+                if (wizard.step < 5) {
+                    goToStep(wizard.step + 1);
+                    return;
+                }
                 hideAlert('modal');
                 var id = document.getElementById('btp-bank-id').value;
-                var payload = {
-                    bank_name: document.getElementById('btp-bank-name').value,
-                    branch_name: document.getElementById('btp-branch-name').value,
-                    currency_code: document.getElementById('btp-currency-code').value,
-                    account_details: document.getElementById('btp-account-details').value,
-                    invoice_label: document.getElementById('btp-invoice-label').value,
-                    upi_id: document.getElementById('btp-upi-id').value,
-                    account_name: document.getElementById('btp-account-name').value,
-                    account_number: document.getElementById('btp-account-number').value,
-                    ifsc_code: document.getElementById('btp-ifsc-code').value
-                };
+                readSchemeInputs();
+                var payload = buildPayload();
                 var action = id ? 'update' : 'create';
                 if (id) {
                     payload.id = parseInt(id, 10);
@@ -317,6 +540,20 @@
                 }).catch(function (error) {
                     showAlert('danger', error && error.message ? error.message : 'Save failed.', 'modal');
                 });
+            });
+
+            byId('btp-wizard-next').addEventListener('click', function () { goToStep(wizard.step + 1); });
+            byId('btp-wizard-back').addEventListener('click', function () { goToStep(wizard.step - 1); });
+            byId('btp-wizard-steps').addEventListener('click', function (event) {
+                var li = event.target && event.target.closest ? event.target.closest('[data-btp-goto]') : null;
+                if (li) { goToStep(parseInt(li.getAttribute('data-btp-goto'), 10)); }
+            });
+            byId('btp-country-code').addEventListener('change', function () {
+                applyDefaultCapabilities();
+                renderSchemeFields();
+            });
+            document.querySelectorAll('.btp-cap-checkbox').forEach(function (box) {
+                box.addEventListener('change', renderSchemeFields);
             });
         }
 

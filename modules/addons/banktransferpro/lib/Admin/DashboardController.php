@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace BankTransferPro\Admin;
 
 use BankTransferPro\Bootstrap;
+use BankTransferPro\Packs\CountryList;
+use BankTransferPro\Packs\SchemeRegistry;
 use BankTransferPro\Repository\SettingsRepository;
 use BankTransferPro\Support\AssetUrl;
 use WHMCS\Database\Capsule;
@@ -34,6 +36,8 @@ final class DashboardController
         $smarty->assign('csrfToken', generate_token('plain'));
         $smarty->assign('activeTab', $tab);
         $smarty->assign('currencies', $this->loadCurrencies());
+        $smarty->assign('countries', CountryList::names());
+        $smarty->assign('registry', SchemeRegistry::toClientConfig());
         $smarty->assign('settings', $this->loadSettings());
         $smarty->assign('departments', $this->loadDepartments());
         $smarty->assign('adminAssetBaseUrl', AssetUrl::admin());
