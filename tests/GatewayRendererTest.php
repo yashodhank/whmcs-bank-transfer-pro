@@ -50,6 +50,11 @@ final class GatewayRendererTest extends TestCase
         $banks = new class implements BankLookup {
             public function findBySlug(string $slug): ?array
             {
+                return null;
+            }
+
+            public function findActiveBySlug(string $slug): ?array
+            {
                 throw new \PDOException("SQLSTATE[42S22]: Column not found: 1054 Unknown column 'currency' in 'SELECT'");
             }
 
@@ -106,6 +111,11 @@ final class RecordingBankLookup implements BankLookup
     }
 
     public function findBySlug(string $slug): ?array
+    {
+        return null;
+    }
+
+    public function findActiveBySlug(string $slug): ?array
     {
         $this->slugLookups[] = $slug;
 

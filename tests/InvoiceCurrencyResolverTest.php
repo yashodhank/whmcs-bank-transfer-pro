@@ -115,4 +115,40 @@ final class InvoiceCurrencyResolverTest extends TestCase
             'currency' => 'usd',
         ]));
     }
+
+    public function testHookVarsIgnoreAdminUserAndAcceptUseridOnly(): void
+    {
+        $resolver = new class extends InvoiceCurrencyResolver {
+            /** @var list<int> */
+            public array $clientLookups = [];
+
+            protected function loadClientCurrencyId(int $userId): ?int
+            {
+                $this->clientLookups[] = $userId;
+
+                return $userId === 42 ? 9 : null;
+            }
+
+            protected function loadCurrencyCode(int $currencyId): ?string
+            {
+                return $currencyId === 9 ? 'INR' : null;
+            }
+
+            protected function loadInvoiceUserId(int $invoiceId): ?int
+            {
+                return null;
+            }
+        };
+
+        $this->assertNull($resolver->codeFromHookVars([
+            'user' => 1,
+        ]));
+        $this->assertSame([], $resolver->clientLookups);
+
+        $this->assertSame('INR', $resolver->codeFromHookVars([
+            'userid' => 42,
+            'user' => 1,
+        ]));
+        $this->assertSame([42], $resolver->clientLookups);
+    }
 }
