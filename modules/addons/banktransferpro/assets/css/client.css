@@ -154,6 +154,99 @@
     font-size: 13px;
 }
 
+.btp-pack__actions {
+    margin-top: 6px;
+}
+
+.btp-pack__actions .btp-copy,
+.btp-pack__actions .btp-print {
+    margin: 0 6px 4px 0;
+}
+
+.btp-qr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 12px;
+}
+
+.btp-qr__code {
+    flex: 0 0 auto;
+    width: 168px;
+    max-width: 100%;
+    padding: 4px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    background: #fff;
+}
+
+.btp-qr__svg {
+    display: block;
+    width: 100%;
+    height: auto;
+}
+
+.btp-qr__side {
+    flex: 1 1 140px;
+    font-size: 13px;
+}
+
+.btp-qr__caption {
+    margin-bottom: 8px;
+    color: #555;
+}
+
+.btp-print-sheet {
+    display: none;
+}
+
+@media print {
+    body.btp-printing > :not(.btp-print-sheet) {
+        display: none !important;
+    }
+
+    body.btp-printing > .btp-print-sheet.is-active {
+        display: block;
+        max-width: 720px;
+        margin: 0 auto;
+        padding: 24px;
+        color: #000;
+        font-size: 13px;
+    }
+
+    .btp-print-sheet__table {
+        width: 100%;
+        margin: 12px 0;
+        border-collapse: collapse;
+    }
+
+    .btp-print-sheet__table th,
+    .btp-print-sheet__table td {
+        padding: 6px 8px;
+        border: 1px solid #000;
+        text-align: left;
+        vertical-align: top;
+        overflow-wrap: anywhere;
+    }
+
+    .btp-print-sheet__box {
+        width: 3em;
+        font-size: 18px;
+        text-align: center !important;
+    }
+
+    .btp-print-sheet__reference code {
+        font-size: 16px;
+        font-weight: 700;
+    }
+
+    .btp-print-sheet__warning {
+        padding: 8px;
+        border: 1px solid #000;
+    }
+}
+
 .btp-pack-alt {
     margin: 8px 0 16px;
 }
