@@ -22,6 +22,11 @@ final class ProofRepository
             'mime' => (string) $data['mime'],
             'size' => (int) $data['size'],
             'ticket_id' => isset($data['ticket_id']) ? (int) $data['ticket_id'] : null,
+            'payment_reference' => (string) ($data['payment_reference'] ?? ''),
+            'pack_id' => (string) ($data['pack_id'] ?? ''),
+            'rail_reference' => (string) ($data['rail_reference'] ?? ''),
+            'declared_amount' => isset($data['declared_amount']) && $data['declared_amount'] !== '' ? (string) $data['declared_amount'] : null,
+            'declared_currency' => (string) ($data['declared_currency'] ?? ''),
             'uploaded_at' => date('Y-m-d H:i:s'),
         ]);
     }
