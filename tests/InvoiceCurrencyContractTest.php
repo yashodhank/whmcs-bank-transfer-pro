@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace BankTransferPro\Tests;
 
+use BankTransferPro\Support\ModuleFingerprint;
 use PHPUnit\Framework\TestCase;
 
 final class InvoiceCurrencyContractTest extends TestCase
@@ -35,9 +36,12 @@ final class InvoiceCurrencyContractTest extends TestCase
         $resolver = $this->readModule('lib/Support/InvoiceCurrencyResolver.php');
 
         $this->assertStringContainsString('codeForGatewayLink', $renderer);
+        $this->assertStringContainsString('InvoiceCurrencyResolver', $renderer);
         $this->assertStringContainsString("\$params['currency']", $resolver);
         $this->assertStringNotContainsString("first(['currency'])", $renderer);
         $this->assertStringNotContainsString('WHMCS\\Database\\Capsule', $renderer);
+        $this->assertStringContainsString('catch (\Throwable', $renderer);
+        $this->assertStringContainsString('temporarily unavailable', $renderer);
     }
 
     public function testClientCurrencyFallbackUsesInvoiceUserid(): void
@@ -54,15 +58,25 @@ final class InvoiceCurrencyContractTest extends TestCase
         );
     }
 
+    public function testCodeFromHookVarsDoesNotUseAdminUserAsClientId(): void
+    {
+        $resolver = $this->readLib('Support/InvoiceCurrencyResolver.php');
+        $method = $this->methodBody($resolver, 'codeFromHookVars');
+
+        $this->assertStringContainsString("\$vars['userid']", $method);
+        $this->assertStringNotContainsString("\$vars['user']", $method);
+    }
+
     public function testUploadControllerResolvesBankFromClientCurrency(): void
     {
         $source = $this->readModule('lib/Client/UploadController.php');
 
         $this->assertStringContainsString('codeFromInvoiceRecord', $source);
+        $this->assertStringContainsString('findActiveBySlug', $source);
         $this->assertStringNotContainsString('$invoice->currency', $source);
     }
 
-    public function testInvoiceCreationHookDoesNotReadTblinvoicesCurrency(): void
+    public function testInvoiceCreationHookWritesPaymentMethodViaDbUpdate(): void
     {
         $hooks = $this->readModule('hooks.php');
         $invoiceCreation = $this->hookBody($hooks, 'InvoiceCreation');
@@ -73,6 +87,37 @@ final class InvoiceCurrencyContractTest extends TestCase
             $invoiceCreation
         );
         $this->assertStringContainsString('codeFromHookVars', $invoiceCreation);
+        $this->assertStringContainsString("table('tblinvoices')", $invoiceCreation);
+        $this->assertStringContainsString('update', $invoiceCreation);
+        $this->assertStringContainsString("'paymentmethod'", $invoiceCreation);
+        $this->assertStringContainsString('logActivity', $invoiceCreation);
+        $this->assertStringNotContainsString("\$vars['paymentmethod'] =", $invoiceCreation);
+        $this->assertDoesNotMatchRegularExpression('/:\s*array\s*\{/', $invoiceCreation);
+    }
+
+    public function testInvoiceCurrencyResolverFileIsPresent(): void
+    {
+        $path = dirname(__DIR__) . '/modules/addons/banktransferpro/lib/Support/InvoiceCurrencyResolver.php';
+        $this->assertFileExists($path);
+    }
+
+    public function testModuleFingerprintEncodesCurrencyCapabilityAndVersion(): void
+    {
+        $this->assertSame('1.1.3', ModuleFingerprint::VERSION);
+        $this->assertTrue(ModuleFingerprint::hasCapability(ModuleFingerprint::CAPABILITY_INVOICE_CURRENCY_VIA_CLIENT));
+        $this->assertTrue(ModuleFingerprint::isHealthy());
+        $this->assertNull(ModuleFingerprint::failureReason());
+
+        $source = $this->readLib('Support/ModuleFingerprint.php');
+        $this->assertStringContainsString('invoice_currency_via_client', $source);
+        $this->assertStringContainsString("VERSION = '1.1.3'", $source);
+    }
+
+    public function testActivateRefusesUnhealthyFingerprint(): void
+    {
+        $source = $this->readModule('banktransferpro.php');
+        $this->assertStringContainsString('ModuleFingerprint::failureReason', $source);
+        $this->assertStringContainsString('Activation refused', $source);
     }
 
     /**
@@ -85,6 +130,7 @@ final class InvoiceCurrencyContractTest extends TestCase
             'lib/Client/UploadController.php',
             'hooks.php',
             'lib/Support/InvoiceCurrencyResolver.php',
+            'lib/Support/ModuleFingerprint.php',
         ];
 
         $sources = [];
@@ -116,7 +162,7 @@ final class InvoiceCurrencyContractTest extends TestCase
     private function hookBody(string $source, string $hookName): string
     {
         if (! preg_match(
-            '/add_hook\(\s*\'' . preg_quote($hookName, '/') . '\'[\s\S]*?function\s*\([^)]*\)\s*:\s*array\s*\{/',
+            '/add_hook\(\s*\'' . preg_quote($hookName, '/') . '\'[\s\S]*?function\s*\([^)]*\)\s*(?::\s*(?:array|void))?\s*\{/',
             $source,
             $match,
             PREG_OFFSET_CAPTURE
@@ -131,5 +177,35 @@ final class InvoiceCurrencyContractTest extends TestCase
         }
 
         return substr($rest, 0, (int) $end[0][1]);
+    }
+
+    private function methodBody(string $source, string $methodName): string
+    {
+        if (! preg_match(
+            '/function\s+' . preg_quote($methodName, '/') . '\s*\([^)]*\)[^{]*\{/',
+            $source,
+            $match,
+            PREG_OFFSET_CAPTURE
+        )) {
+            $this->fail('Method ' . $methodName . ' was not found.');
+        }
+
+        $start = (int) $match[0][1] + strlen($match[0][0]);
+        $rest = substr($source, $start);
+        $depth = 1;
+        $length = strlen($rest);
+        for ($i = 0; $i < $length; $i++) {
+            $char = $rest[$i];
+            if ($char === '{') {
+                $depth++;
+            } elseif ($char === '}') {
+                $depth--;
+                if ($depth === 0) {
+                    return substr($rest, 0, $i);
+                }
+            }
+        }
+
+        return $rest;
     }
 }
