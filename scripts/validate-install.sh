@@ -4,6 +4,7 @@ set -euo pipefail
 MODE="${BTP_INSTALL_MODE:-immutable}"
 ROOT="${1:-$(pwd)}"
 PROOFS_DIR="${BTP_PROOFS_DIR:-}"
+REQUIRED_VERSION="1.1.3"
 
 usage() {
   cat <<'EOF'
@@ -48,10 +49,59 @@ require_writable_dir() {
   pass "directory writable: $path"
 }
 
+file_contains() {
+  local path="$1"
+  local pattern="$2"
+  if command -v rg >/dev/null 2>&1; then
+    rg -q --fixed-strings -- "$pattern" "$path"
+  else
+    grep -Fq -- "$pattern" "$path"
+  fi
+}
+
 require_dir "$ROOT/modules/addons/banktransferpro"
 require_file "$ROOT/modules/addons/banktransferpro/banktransferpro.php"
 require_file "$ROOT/modules/gateways/banktransferpro.php"
 require_file "$ROOT/modules/addons/banktransferpro/lib/Bootstrap.php"
+require_file "$ROOT/modules/addons/banktransferpro/lib/Support/InvoiceCurrencyResolver.php"
+require_file "$ROOT/modules/addons/banktransferpro/lib/Support/ModuleFingerprint.php"
+
+ADDON_CONFIG="$ROOT/modules/addons/banktransferpro/banktransferpro.php"
+RENDERER="$ROOT/modules/addons/banktransferpro/lib/Gateway/GatewayRenderer.php"
+FINGERPRINT="$ROOT/modules/addons/banktransferpro/lib/Support/ModuleFingerprint.php"
+
+require_file "$RENDERER"
+
+if ! file_contains "$FINGERPRINT" "invoice_currency_via_client"; then
+  fail "ModuleFingerprint missing capability marker invoice_currency_via_client"
+fi
+pass "fingerprint capability marker present"
+
+if ! file_contains "$FINGERPRINT" "VERSION = '${REQUIRED_VERSION}'"; then
+  fail "ModuleFingerprint VERSION must be ${REQUIRED_VERSION}"
+fi
+pass "fingerprint version is ${REQUIRED_VERSION}"
+
+VERSION="$(
+  sed -n "s/.*'version'[[:space:]]*=>[[:space:]]*'\([^']*\)'.*/\1/p" "$ADDON_CONFIG" | head -n 1
+)"
+[[ -n "$VERSION" ]] || fail "could not read addon version from banktransferpro_config"
+LOWEST="$(printf '%s\n%s\n' "$REQUIRED_VERSION" "$VERSION" | sort -V | head -n 1)"
+[[ "$LOWEST" == "$REQUIRED_VERSION" ]] || fail "addon version ${VERSION} is older than required ${REQUIRED_VERSION}"
+pass "addon version ${VERSION} >= ${REQUIRED_VERSION}"
+
+if file_contains "$RENDERER" "first(['currency'])" || file_contains "$RENDERER" 'first(["currency"])'; then
+  fail "GatewayRenderer still contains banned first(['currency']) invoice-currency pattern"
+fi
+if file_contains "$RENDERER" "tblinvoices" && grep -Eq "currency" "$RENDERER"; then
+  fail "GatewayRenderer still references tblinvoices together with currency"
+fi
+pass "GatewayRenderer has no banned tblinvoices.currency lookup"
+
+if ! file_contains "$RENDERER" "InvoiceCurrencyResolver"; then
+  fail "GatewayRenderer is not wired to InvoiceCurrencyResolver"
+fi
+pass "GatewayRenderer uses InvoiceCurrencyResolver"
 
 if [[ -f "$ROOT/vendor/autoload.php" ]]; then
   pass "WHMCS/root Composer autoload present"
