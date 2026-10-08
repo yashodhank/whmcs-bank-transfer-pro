@@ -130,6 +130,9 @@ One bank row (a *receive profile*) serves every way a client can pay. The engine
 
 - Identifiers live in JSON (`identifiers`) and are described by `SchemeRegistry`; adding a country scheme is a registry entry, not a migration. Legacy `upi_id` / `ifsc_code` columns are kept in sync and backfilled (`country_code=IN`, capabilities inferred) by migration 005.
 - Every pack shares a short, SWIFT-safe **payment reference** (`BTP-{invoiceId}-{check}`, max 20 characters) minted by `PaymentReference`. Proofs and tickets store it (migration 006: `payment_reference`, `pack_id`, `rail_reference`, `declared_amount`, `declared_currency`) and the upload endpoint rejects a missing or mismatched reference.
+- **Alias QR codes (Phase B).** The *Pay in seconds* pack renders an inline SVG QR for UPI (`upi://pay`, INR), PayNow (SGQR/EMVCo, SGD) and Pix (BR Code, BRL) from a dependency-free encoder (`lib/Packs/Qr/`), plus an *Open in UPI app* deep link. The invoice amount is pre-filled only when the invoice currency equals the rail currency, and the payment reference travels as the UPI note / PayNow bill number / Pix txid (Pix txid is alphanumeric, so hyphens are dropped). Aliases without a published QR format (PayID, Interac, FPS) stay copy-only. The wire and local packs never carry a QR.
+- **Treasury helpers (Phase B).** Every pack has *Copy all details* (plain text, reference included). The international wire pack also has *Print wire checklist*: a tick-box sheet built only from the wire pack, printed through a `@media print` rule so no theme change is needed.
+- **Invoice emails (Phase B).** An `EmailPreSend` hook supplies `{$btp_payment_instructions}` (inline-styled HTML of the one recommended pack), `{$btp_payment_instructions_text}`, `{$btp_payment_reference}` and `{$btp_payment_pack}` for Bank Transfer Pro invoices. WHMCS hooks cannot rewrite a mail body, so **Info tab → Invoice emails** offers an opt-in, reversible edit of the stock *Invoice Created*, *Payment Reminder* and *Overdue Notice* templates (marker-wrapped; Remove restores them byte for byte), or paste the snippet from the Info tab yourself. The amount in the email is the outstanding balance; QR codes are not embedded in email, the message links to the invoice instead.
 - A send currency different from the invoice currency is blocked unless the profile enables *accept_fx_receive*. No live FX quotes.
 - Stock WHMCS `viewinvoice` templates only print the gateway link, so the link output carries its own stylesheet, script and proof form. No theme or `whmcs-prod-new` change is required.
 - WHMCS HTML-entity-encodes request input; admin payloads are decoded with `WhmcsInput::decode()` and escaped once on output.
@@ -144,6 +147,8 @@ One bank row (a *receive profile*) serves every way a client can pay. The engine
 6. Upload payment proof on unpaid invoice → ticket created with attachment in the configured proof directory
 7. Receive Profile wizard: country → identity → capabilities → policies → preview shows desktop, phone and abroad payer views
 8. INR bank with local + UPI + wire: domestic client sees Local pack (UPI under *Paying another way?*); client abroad sees only the wire pack with the same payment reference
+9. Mobile INR client: *Pay in seconds* is recommended with a UPI QR whose note equals the payment reference; *Copy all details* pastes the full block; *Print wire checklist* (wire pack) prints only the checklist
+10. Info tab → *Add to invoice emails*, then trigger *Invoice Created* for a Bank Transfer Pro invoice: the email shows the recommended pack and reference; *Remove from invoice emails* restores the templates
 
 ## License
 
