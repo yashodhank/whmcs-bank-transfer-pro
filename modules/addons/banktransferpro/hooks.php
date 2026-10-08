@@ -7,7 +7,7 @@ if (! defined('WHMCS')) {
 }
 
 if (! defined('BTP_ADDON_ASSET_VERSION')) {
-    define('BTP_ADDON_ASSET_VERSION', '1.1.2');
+    define('BTP_ADDON_ASSET_VERSION', '1.1.3');
 }
 
 require_once __DIR__ . '/lib/Bootstrap.php';
@@ -99,34 +99,58 @@ add_hook('ClientAreaPageViewInvoice', 1, static function (array $vars): array {
     return $vars;
 });
 
-add_hook('InvoiceCreation', 1, static function (array $vars): array {
-    Bootstrap::init();
+add_hook('InvoiceCreation', 1, static function (array $vars): void {
+    // WHMCS InvoiceCreation does not support a response; write paymentmethod via DB UPDATE.
+    try {
+        Bootstrap::init();
 
-    $settings = new SettingsRepository();
-    if (! $settings->isAutoSelectGatewayEnabled()) {
-        return $vars;
+        $settings = new SettingsRepository();
+        if (! $settings->isAutoSelectGatewayEnabled()) {
+            return;
+        }
+
+        $invoiceId = (int) ($vars['invoiceid'] ?? 0);
+        if ($invoiceId <= 0) {
+            return;
+        }
+
+        $invoice = Capsule::table('tblinvoices')
+            ->where('id', $invoiceId)
+            ->first(['id', 'paymentmethod', 'userid']);
+        if ($invoice === null) {
+            return;
+        }
+
+        $paymentMethod = (string) ($invoice->paymentmethod ?? '');
+        if ($paymentMethod !== '' && $paymentMethod !== 'banktransfer') {
+            return;
+        }
+
+        $code = (new InvoiceCurrencyResolver())->codeFromHookVars($vars);
+        if ($code === null) {
+            $code = (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice);
+        }
+        if ($code === null) {
+            return;
+        }
+
+        $bank = (new BankRepository())->findActiveByCurrencyCode($code);
+        if ($bank === null) {
+            return;
+        }
+
+        $gateway = RuntimeEnvironment::usesStaticGatewayMode()
+            ? 'banktransferpro'
+            : (string) $bank['gateway_slug'];
+
+        Capsule::table('tblinvoices')
+            ->where('id', $invoiceId)
+            ->update(['paymentmethod' => $gateway]);
+    } catch (Throwable $exception) {
+        if (function_exists('logActivity')) {
+            logActivity('Bank Transfer Pro: InvoiceCreation auto-select failed: ' . $exception->getMessage());
+        }
     }
-
-    $paymentMethod = (string) ($vars['paymentmethod'] ?? '');
-    if ($paymentMethod !== '' && $paymentMethod !== 'banktransfer') {
-        return $vars;
-    }
-
-    $code = (new InvoiceCurrencyResolver())->codeFromHookVars($vars);
-    if ($code === null) {
-        return $vars;
-    }
-
-    $bank = (new BankRepository())->findActiveByCurrencyCode($code);
-    if ($bank === null) {
-        return $vars;
-    }
-
-    $vars['paymentmethod'] = RuntimeEnvironment::usesStaticGatewayMode()
-        ? 'banktransferpro'
-        : $bank['gateway_slug'];
-
-    return $vars;
 });
 
 add_hook('ClientAreaPageViewInvoice', 2, static function (array $vars): array {
@@ -335,7 +359,7 @@ function btp_resolve_invoice_bank(object $invoice, string $gateway): ?array
 {
     $repo = new BankRepository();
     if ($gateway !== 'banktransferpro') {
-        return $repo->findBySlug($gateway);
+        return $repo->findActiveBySlug($gateway);
     }
 
     $code = (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice);

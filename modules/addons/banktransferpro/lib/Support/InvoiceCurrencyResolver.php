@@ -60,7 +60,8 @@ class InvoiceCurrencyResolver
             }
         }
 
-        $userId = (int) ($vars['userid'] ?? $vars['user'] ?? 0);
+        // InvoiceCreation's `user` is admin/system context — never treat it as a client id.
+        $userId = (int) ($vars['userid'] ?? 0);
 
         return $this->codeFromClientId($userId);
     }

@@ -42,6 +42,19 @@ final class BankRepository implements BankLookup
     }
 
     /**
+     * @return array<string, mixed>|null
+     */
+    public function findActiveBySlug(string $slug): ?array
+    {
+        $row = Capsule::table('mod_btp_banks')
+            ->where('gateway_slug', $slug)
+            ->where('is_active', 1)
+            ->first();
+
+        return $row ? $this->mapRow($row) : null;
+    }
+
+    /**
      * @return list<string>
      */
     public function allSlugs(): array

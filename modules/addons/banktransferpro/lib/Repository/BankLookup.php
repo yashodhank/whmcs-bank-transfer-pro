@@ -14,5 +14,10 @@ interface BankLookup
     /**
      * @return array<string, mixed>|null
      */
+    public function findActiveBySlug(string $slug): ?array;
+
+    /**
+     * @return array<string, mixed>|null
+     */
     public function findActiveByCurrencyCode(string $currencyCode): ?array;
 }

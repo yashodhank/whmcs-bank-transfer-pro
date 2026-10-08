@@ -65,7 +65,7 @@ HTML;
         try {
             $repo = $banks ?? new BankRepository();
             $resolver = $currencies ?? new InvoiceCurrencyResolver();
-            $bank = $repo->findBySlug($gatewaySlug);
+            $bank = $repo->findActiveBySlug($gatewaySlug);
             if ($bank === null && $gatewaySlug === 'banktransferpro') {
                 $bank = self::findByInvoiceCurrency($repo, $params, $resolver);
             }
