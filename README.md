@@ -118,6 +118,22 @@ Production hosts should treat this repo as a self-contained artifact. Avoid Bank
 | Generated gateways (`modules/gateways/banktransferpro_*.php`) | Mutable-runtime payment modules delegating to `GatewayRenderer` |
 | Database | `mod_btp_banks`, `mod_btp_payment_proofs`, `mod_btp_schema_version` |
 
+## Payment Instruction Packs
+
+One bank row (a *receive profile*) serves every way a client can pay. The engine builds copy-optimised packs for the payer and shows **one recommended pack** with the rest under *Paying another way?*.
+
+| Pack | Shown to | Contents |
+|------|----------|----------|
+| Local bank transfer | Clients in the bank's country | Account name/number, local code (IFSC, ABA, sort code, BSB, ...), bank; NEFT / IMPS / RTGS style clearing systems appear as chips only |
+| Pay in seconds | Clients in the bank's country | Alias only (UPI, PayNow, PayID, Pix, ...), never account or wire data |
+| International wire | Any client; the **only** pack for clients abroad | Beneficiary + address, account/IBAN, bank + address, SWIFT/BIC, intermediary BIC, charge code (OUR default), remittance reference, optional purpose hint; never an instant alias |
+
+- Identifiers live in JSON (`identifiers`) and are described by `SchemeRegistry`; adding a country scheme is a registry entry, not a migration. Legacy `upi_id` / `ifsc_code` columns are kept in sync and backfilled (`country_code=IN`, capabilities inferred) by migration 005.
+- Every pack shares a short, SWIFT-safe **payment reference** (`BTP-{invoiceId}-{check}`, max 20 characters) minted by `PaymentReference`. Proofs and tickets store it (migration 006: `payment_reference`, `pack_id`, `rail_reference`, `declared_amount`, `declared_currency`) and the upload endpoint rejects a missing or mismatched reference.
+- A send currency different from the invoice currency is blocked unless the profile enables *accept_fx_receive*. No live FX quotes.
+- Stock WHMCS `viewinvoice` templates only print the gateway link, so the link output carries its own stylesheet, script and proof form. No theme or `whmcs-prod-new` change is required.
+- WHMCS HTML-entity-encodes request input; admin payloads are decoded with `WhmcsInput::decode()` and escaped once on output.
+
 ## Manual smoke checklist
 
 1. Activate addon → empty dashboard loads
@@ -126,6 +142,8 @@ Production hosts should treat this repo as a self-contained artifact. Avoid Bank
 4. Edit bank details → invoice shows updated IBAN/details
 5. Delete bank → confirmation → gateway deactivated when the last bank is removed
 6. Upload payment proof on unpaid invoice → ticket created with attachment in the configured proof directory
+7. Receive Profile wizard: country → identity → capabilities → policies → preview shows desktop, phone and abroad payer views
+8. INR bank with local + UPI + wire: domestic client sees Local pack (UPI under *Paying another way?*); client abroad sees only the wire pack with the same payment reference
 
 ## License
 
