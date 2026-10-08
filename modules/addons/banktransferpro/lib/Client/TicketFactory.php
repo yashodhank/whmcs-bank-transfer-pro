@@ -62,9 +62,22 @@ final class TicketFactory
         ];
     }
 
+    /**
+     * Renders the configured subject and guarantees the payment reference is visible,
+     * even when the merchant's custom template does not use {paymentreference}.
+     *
+     * @param array<string, scalar|null> $context
+     */
     public function renderSubject(array $context): string
     {
-        return $this->renderTemplate($this->settings->ticketSubjectTemplate(), $context);
+        $subject = $this->renderTemplate($this->settings->ticketSubjectTemplate(), $context);
+
+        $reference = trim((string) ($context['paymentreference'] ?? ''));
+        if ($reference !== '' && ! str_contains($subject, $reference)) {
+            $subject .= ' [' . $reference . ']';
+        }
+
+        return $subject;
     }
 
     /**

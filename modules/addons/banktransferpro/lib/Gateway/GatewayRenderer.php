@@ -4,9 +4,16 @@ declare(strict_types=1);
 
 namespace BankTransferPro\Gateway;
 
+use BankTransferPro\Client\ClientAssets;
+use BankTransferPro\Client\ProofPanel;
+use BankTransferPro\Packs\InstructionPackEngine;
+use BankTransferPro\Packs\PackRenderer;
+use BankTransferPro\Packs\PayerContext;
 use BankTransferPro\Repository\BankLookup;
 use BankTransferPro\Repository\BankRepository;
+use BankTransferPro\Repository\SettingsRepository;
 use BankTransferPro\Support\InvoiceCurrencyResolver;
+use BankTransferPro\Support\ModuleFingerprint;
 
 final class GatewayRenderer
 {
@@ -25,31 +32,69 @@ final class GatewayRenderer
             return self::missingDetailsMarkup();
         }
 
-        $paymentLabel = htmlspecialchars(BankRepository::buildInvoiceLabel($bank), ENT_QUOTES, 'UTF-8');
-        $invoiceRef = htmlspecialchars((string) ($params['invoicenum'] ?? $params['invoiceid'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $paymentLabel = BankRepository::buildInvoiceLabel($bank);
         $refLabel = 'Invoice Reference';
 
         if (class_exists('Lang') && method_exists('Lang', 'trans')) {
             $translated = \Lang::trans('invoicerefnum');
             if (is_string($translated) && $translated !== '' && $translated !== 'invoicerefnum') {
-                $refLabel = htmlspecialchars($translated, ENT_QUOTES, 'UTF-8');
+                $refLabel = $translated;
             }
         }
 
-        $structuredMarkup = self::structuredDetailsMarkup($bank);
-        $legacyDetails = self::legacyDetailsMarkup((string) ($bank['account_details'] ?? ''));
+        $invoiceId = (int) ($params['invoiceid'] ?? 0);
+        $packSet = InstructionPackEngine::build(
+            $bank,
+            PayerContext::fromClientDetails(
+                is_array($params['clientdetails'] ?? null) ? $params['clientdetails'] : [],
+                isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : null
+            ),
+            [
+                'id' => $invoiceId,
+                'number' => (string) ($params['invoicenum'] ?? '') !== '' ? (string) $params['invoicenum'] : (string) $invoiceId,
+                'amount' => isset($params['amount']) ? (string) $params['amount'] : null,
+                'currency' => InvoiceCurrencyResolver::normalizeCode($params['currency'] ?? null),
+            ]
+        );
 
-        return <<<HTML
-<div class="btp-bank-details">
-    <div class="btp-bank-details__summary">
-        <span class="btp-bank-details__summary-label">Pay via</span>
-        <strong>{$paymentLabel}</strong>
-    </div>
-    {$structuredMarkup}
-    {$legacyDetails}
-    <div class="btp-bank-details__reference"><strong>{$refLabel}:</strong> {$invoiceRef}</div>
-</div>
-HTML;
+        $html = PackRenderer::render($packSet, $paymentLabel, $refLabel);
+
+        return ClientAssets::tags($params, self::assetVersion()) . $html . self::proofPanel($params, $packSet);
+    }
+
+    private static function assetVersion(): string
+    {
+        return defined('BTP_ADDON_ASSET_VERSION') ? (string) BTP_ADDON_ASSET_VERSION : ModuleFingerprint::VERSION;
+    }
+
+    /**
+     * Upload-proof form delivered through the gateway link (the only output stock invoice
+     * templates print). Silently omitted when settings/CSRF cannot be resolved.
+     *
+     * @param array<string, mixed> $params
+     * @param array<string, mixed> $packSet
+     */
+    private static function proofPanel(array $params, array $packSet): string
+    {
+        try {
+            if (! function_exists('generate_token')) {
+                return '';
+            }
+
+            $settings = new SettingsRepository();
+            if (! $settings->isProofUploadEnabled()) {
+                return '';
+            }
+
+            $invoiceId = (int) ($params['invoiceid'] ?? 0);
+            if ($invoiceId <= 0) {
+                return '';
+            }
+
+            return ProofPanel::render(ProofPanel::context($packSet, $invoiceId, $settings, (string) generate_token('plain')));
+        } catch (\Throwable) {
+            return '';
+        }
     }
 
     /**
@@ -97,70 +142,5 @@ HTML;
     private static function missingDetailsMarkup(): string
     {
         return '<p class="btp-bank-details btp-bank-details--missing">Bank details are temporarily unavailable.</p>';
-    }
-
-    /**
-     * @param array<string, mixed> $bank
-     */
-    private static function structuredDetailsMarkup(array $bank): string
-    {
-        $rows = [];
-
-        $upiId = trim((string) ($bank['upi_id'] ?? ''));
-        if ($upiId !== '') {
-            $rows[] = self::detailRow('UPI', $upiId);
-        }
-
-        $accountRows = [];
-        $accountName = trim((string) ($bank['account_name'] ?? ''));
-        if ($accountName !== '') {
-            $accountRows[] = self::detailRow('Account Name', $accountName);
-        }
-
-        $accountNumber = trim((string) ($bank['account_number'] ?? ''));
-        if ($accountNumber !== '') {
-            $accountRows[] = self::detailRow('Account Number', $accountNumber);
-        }
-
-        $ifscCode = trim((string) ($bank['ifsc_code'] ?? ''));
-        if ($ifscCode !== '') {
-            $accountRows[] = self::detailRow('IFSC', $ifscCode);
-        }
-
-        $branchName = trim((string) ($bank['branch_name'] ?? ''));
-        if ($branchName !== '') {
-            $accountRows[] = self::detailRow('Bank Branch', $branchName);
-        }
-
-        $bankName = trim((string) ($bank['bank_name'] ?? ''));
-        if ($bankName !== '') {
-            $accountRows[] = self::detailRow('Bank Name', $bankName);
-        }
-
-        if ($accountRows !== []) {
-            $rows[] = '<div class="btp-bank-details__section-title">Bank Account</div>' . implode('', $accountRows);
-        }
-
-        return implode('', $rows);
-    }
-
-    private static function legacyDetailsMarkup(string $details): string
-    {
-        $details = trim($details);
-        if ($details === '') {
-            return '';
-        }
-
-        $accountDetails = nl2br(htmlspecialchars($details, ENT_QUOTES, 'UTF-8'));
-
-        return '<div class="btp-bank-details__notes">' . $accountDetails . '</div>';
-    }
-
-    private static function detailRow(string $label, string $value): string
-    {
-        $safeLabel = htmlspecialchars($label, ENT_QUOTES, 'UTF-8');
-        $safeValue = htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
-
-        return '<div class="btp-bank-details__row"><span class="btp-bank-details__label">' . $safeLabel . ':</span> <span class="btp-bank-details__value">' . $safeValue . '</span></div>';
     }
 }

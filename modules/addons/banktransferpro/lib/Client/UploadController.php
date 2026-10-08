@@ -5,6 +5,10 @@ declare(strict_types=1);
 namespace BankTransferPro\Client;
 
 use BankTransferPro\Admin\JsonResponse;
+use BankTransferPro\Packs\BankProfile;
+use BankTransferPro\Packs\InstructionPackEngine;
+use BankTransferPro\Packs\PayerContext;
+use BankTransferPro\Packs\ProofDetails;
 use BankTransferPro\Repository\BankRepository;
 use BankTransferPro\Repository\ProofRepository;
 use BankTransferPro\Repository\SettingsRepository;
@@ -68,15 +72,28 @@ final class UploadController
         }
 
         try {
-            $stored = $this->uploader->store($clientId, $_FILES['proof']);
             $bank = $this->resolveBankForInvoice($invoice, $gateway);
+            $invoiceCurrency = (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice);
+            $packSet = $this->buildPackSet($invoice, $bank, $invoiceCurrency, $clientId);
+
+            // Validate pack-aware proof fields before touching the filesystem.
+            $details = ProofDetails::fromRequest(
+                $_POST,
+                $packSet,
+                $invoiceId,
+                $invoiceCurrency,
+                $bank !== null && BankProfile::acceptsFx($bank)
+            );
+
+            $stored = $this->uploader->store($clientId, $_FILES['proof']);
 
             $subject = $this->tickets->renderSubject([
                 'invoiceid' => (string) $invoiceId,
-                'invoicenum' => (string) ($invoice->invoicenum ?? $invoiceId),
+                'invoicenum' => (string) ($invoice->invoicenum ?? '') !== '' ? (string) $invoice->invoicenum : (string) $invoiceId,
+                'paymentreference' => $details['payment_reference'],
             ]);
 
-            $message = $this->buildTicketMessage($invoice, $bank, $note);
+            $message = $this->buildTicketMessage($invoice, $bank, $note, $details, $packSet);
 
             $ticket = $this->tickets->openPaymentProofTicket(
                 $clientId,
@@ -95,12 +112,18 @@ final class UploadController
                 'mime' => $stored['mime'],
                 'size' => $stored['size'],
                 'ticket_id' => $ticket['ticket_id'],
+                'payment_reference' => $details['payment_reference'],
+                'pack_id' => $details['pack_id'],
+                'rail_reference' => $details['rail_reference'],
+                'declared_amount' => $details['declared_amount'],
+                'declared_currency' => $details['declared_currency'],
             ]);
 
             JsonResponse::success([
                 'proof_id' => $proofId,
                 'ticket_id' => $ticket['ticket_id'],
                 'ticket_number' => $ticket['ticket_number'],
+                'payment_reference' => $details['payment_reference'],
             ], 'Payment proof uploaded. Support ticket #' . $ticket['ticket_number'] . ' has been opened.');
         } catch (\InvalidArgumentException $e) {
             JsonResponse::error('VALIDATION_ERROR', $e->getMessage());
@@ -129,16 +152,49 @@ final class UploadController
         }
     }
 
-    private function buildTicketMessage(object $invoice, ?array $bank, string $note): string
+    /**
+     * @param array<string, mixed>|null $bank
+     * @return array<string, mixed>
+     */
+    private function buildPackSet(object $invoice, ?array $bank, ?string $invoiceCurrency, int $clientId): array
+    {
+        $invoiceId = (int) $invoice->id;
+        if ($bank === null) {
+            return ['packs' => [], 'recommended' => null, 'amount' => (string) ($invoice->total ?? ''), 'currency' => $invoiceCurrency];
+        }
+
+        $country = Capsule::table('tblclients')->where('id', $clientId)->value('country');
+
+        return InstructionPackEngine::build(
+            $bank,
+            PayerContext::fromCountry($country, false),
+            [
+                'id' => $invoiceId,
+                'number' => (string) ($invoice->invoicenum ?? '') !== '' ? (string) $invoice->invoicenum : (string) $invoiceId,
+                'amount' => (string) ($invoice->total ?? ''),
+                'currency' => $invoiceCurrency,
+            ]
+        );
+    }
+
+    /**
+     * @param array<string, mixed>|null $bank
+     * @param array{payment_reference: string, pack_id: string, rail_reference: string, declared_amount: ?string, declared_currency: string} $details
+     * @param array<string, mixed> $packSet
+     */
+    private function buildTicketMessage(object $invoice, ?array $bank, string $note, array $details, array $packSet): string
     {
         $lines = [
             'A client uploaded a payment proof for a bank transfer invoice.',
             '',
             'Invoice ID: ' . $invoice->id,
-            'Invoice Number: ' . ($invoice->invoicenum ?? $invoice->id),
+            'Invoice Number: ' . ((string) ($invoice->invoicenum ?? '') !== '' ? $invoice->invoicenum : $invoice->id),
             'Amount: ' . ($invoice->total ?? ''),
             'Gateway: ' . ($bank['display_name'] ?? $invoice->paymentmethod),
+            '',
         ];
+
+        $lines = array_merge($lines, ProofDetails::ticketLines($details, $packSet));
 
         if ($note !== '') {
             $lines[] = '';

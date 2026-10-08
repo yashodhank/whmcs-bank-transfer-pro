@@ -7,12 +7,15 @@ if (! defined('WHMCS')) {
 }
 
 if (! defined('BTP_ADDON_ASSET_VERSION')) {
-    define('BTP_ADDON_ASSET_VERSION', '1.1.3');
+    define('BTP_ADDON_ASSET_VERSION', '1.2.0');
 }
 
 require_once __DIR__ . '/lib/Bootstrap.php';
 
 use BankTransferPro\Bootstrap;
+use BankTransferPro\Client\ProofPanel;
+use BankTransferPro\Packs\InstructionPackEngine;
+use BankTransferPro\Packs\PayerContext;
 use BankTransferPro\Repository\BankRepository;
 use BankTransferPro\Repository\SettingsRepository;
 use BankTransferPro\Support\InvoiceCurrencyResolver;
@@ -22,6 +25,13 @@ use WHMCS\Database\Capsule;
 function btp_stylesheet_link_tag(): string
 {
     $href = '../modules/addons/banktransferpro/assets/css/admin.css?v=' . urlencode(BTP_ADDON_ASSET_VERSION);
+
+    return '<link rel="stylesheet" href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" />' . "\n";
+}
+
+function btp_admin_preview_stylesheet_link_tag(): string
+{
+    $href = '../modules/addons/banktransferpro/assets/css/client.css?v=' . urlencode(BTP_ADDON_ASSET_VERSION);
 
     return '<link rel="stylesheet" href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" />' . "\n";
 }
@@ -40,7 +50,7 @@ add_hook('AdminAreaHeadOutput', 1, static function (array $vars = []): string {
         return '';
     }
 
-    return btp_stylesheet_link_tag();
+    return btp_stylesheet_link_tag() . btp_admin_preview_stylesheet_link_tag();
 });
 
 add_hook('ClientAreaHeadOutput', 1, static function (array $vars = []): string {
@@ -79,6 +89,27 @@ add_hook('ClientAreaPageViewInvoice', 1, static function (array $vars): array {
     $bank = btp_resolve_invoice_bank($invoice, $gateway);
     if ($bank !== null) {
         $vars['btp_payment_label'] = BankRepository::buildInvoiceLabel($bank);
+
+        $packSet = InstructionPackEngine::build(
+            $bank,
+            PayerContext::fromClientDetails(
+                is_array($vars['clientsdetails'] ?? null) ? $vars['clientsdetails'] : [],
+                isset($_SERVER['HTTP_USER_AGENT']) ? (string) $_SERVER['HTTP_USER_AGENT'] : null
+            ),
+            [
+                'id' => $invoiceId,
+                'number' => (string) ($invoice->invoicenum ?? '') !== '' ? (string) $invoice->invoicenum : (string) $invoiceId,
+                'amount' => (string) ($invoice->total ?? ''),
+                'currency' => (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice),
+            ]
+        );
+        $vars['btp_payment_reference'] = (string) $packSet['reference'];
+        $vars['btp_recommended_pack'] = (string) ($packSet['recommended'] ?? '');
+        $vars['btp_invoice_currency'] = (string) ($packSet['currency'] ?? '');
+        $vars['btp_pack_options'] = array_values(array_map(
+            static fn (array $pack): array => ['id' => (string) $pack['id'], 'title' => (string) $pack['title']],
+            $packSet['packs']
+        ));
     }
 
     $vars['btp_support_url'] = btp_support_ticket_url($settings);
@@ -180,44 +211,18 @@ add_hook('ClientAreaFooterOutput', 1, static function (array $vars = []): string
  */
 function btp_render_payment_proof_panel(array $vars): string
 {
-    $uploadAction = htmlspecialchars((string) ($vars['btp_upload_action'] ?? ''), ENT_QUOTES, 'UTF-8');
-    $invoiceId = (int) ($vars['btp_invoice_id'] ?? 0);
-    $token = htmlspecialchars((string) ($vars['btp_csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8');
-    $maxMb = htmlspecialchars((string) ($vars['btp_max_upload_mb'] ?? '5'), ENT_QUOTES, 'UTF-8');
-    $allowed = htmlspecialchars((string) ($vars['btp_allowed_types'] ?? ''), ENT_QUOTES, 'UTF-8');
-    $supportUrl = htmlspecialchars((string) ($vars['btp_support_url'] ?? 'supporttickets.php'), ENT_QUOTES, 'UTF-8');
-
-    return <<<HTML
-<div class="btp-payment-proof" id="btp-payment-proof">
-    <h4>Upload Payment Proof</h4>
-    <p>Upload a screenshot or PDF of your bank transfer receipt. A support ticket will be opened automatically.</p>
-    <form method="post" action="{$uploadAction}" enctype="multipart/form-data" class="btp-payment-proof__form">
-        <input type="hidden" name="token" value="{$token}" />
-        <input type="hidden" name="invoiceid" value="{$invoiceId}" />
-        <div class="form-group">
-            <label for="btp-proof-file">Payment proof file</label>
-            <input type="file" name="proof" id="btp-proof-file" class="form-control" required />
-            <p class="help-block">Max {$maxMb} MB. Allowed: {$allowed}</p>
-        </div>
-        <div class="form-group">
-            <label for="btp-proof-note">Optional note</label>
-            <textarea name="note" id="btp-proof-note" class="form-control" rows="3"></textarea>
-        </div>
-        <button type="submit" class="btn btn-primary">Upload &amp; Open Ticket</button>
-        <a href="{$supportUrl}" class="btn btn-default btp-payment-proof__support-link">Open Support Instead</a>
-        <p class="help-block">If you cannot upload here, open a support ticket or reply to your invoice email with the receipt screenshot.</p>
-        <div class="btp-payment-proof__result" aria-live="polite"></div>
-    </form>
-</div>
-HTML;
+    return ProofPanel::render($vars);
 }
 
 /**
+ * Footer output for themes that print ClientAreaFooterOutput on the invoice page.
+ * Stock themes never do; there the gateway link carries the same assets itself.
+ *
  * @param array<string, mixed> $vars
  */
 function btp_render_invoice_footer(array $vars): string
 {
-    $paymentLabel = json_encode((string) ($vars['btp_payment_label'] ?? ''));
+    $paymentLabel = json_encode((string) ($vars['btp_payment_label'] ?? ''), JSON_HEX_TAG | JSON_HEX_AMP);
     if (! is_string($paymentLabel) || $paymentLabel === '') {
         $paymentLabel = '""';
     }
@@ -226,111 +231,10 @@ function btp_render_invoice_footer(array $vars): string
         $panelHtml = btp_render_payment_proof_panel($vars);
     }
 
-    return $panelHtml . <<<HTML
-<script>
-(function () {
-    var paymentLabel = {$paymentLabel};
+    $src = htmlspecialchars('modules/addons/banktransferpro/assets/js/client.js?v=' . urlencode(BTP_ADDON_ASSET_VERSION), ENT_QUOTES, 'UTF-8');
 
-    function moveProofPanel() {
-        var panel = document.getElementById('btp-payment-proof');
-        var bankDetails = document.querySelector('.btp-bank-details');
-        if (!panel || !bankDetails || panel.dataset.btpPlaced === '1') {
-            return;
-        }
-
-        bankDetails.insertAdjacentElement('afterend', panel);
-        panel.dataset.btpPlaced = '1';
-    }
-
-    function relabelPaymentMethod() {
-        if (!paymentLabel) {
-            return;
-        }
-
-        var select = document.querySelector('select[name="paymentmethod"]');
-        if (!select || !select.value || select.value.indexOf('banktransferpro') !== 0) {
-            return;
-        }
-
-        if (select.options.length === 1) {
-            var summary = document.createElement('div');
-            summary.className = 'btp-payment-method-summary';
-            summary.innerHTML = '<span class="btp-payment-method-summary__label">Pay via</span> <strong></strong>';
-            summary.querySelector('strong').textContent = paymentLabel;
-            select.style.display = 'none';
-            select.insertAdjacentElement('afterend', summary);
-            return;
-        }
-
-        var selectedOption = select.options[select.selectedIndex];
-        if (selectedOption) {
-            selectedOption.text = paymentLabel;
-        }
-    }
-
-    function initPaymentProofForm() {
-        var form = document.querySelector('#btp-payment-proof form');
-        if (!form || form.dataset.btpBound === '1') { return; }
-        form.dataset.btpBound = '1';
-
-        form.addEventListener('submit', function (event) {
-            event.preventDefault();
-            var result = form.querySelector('.btp-payment-proof__result');
-            var data = new FormData(form);
-            fetch(form.action, { method: 'POST', body: data, credentials: 'same-origin' })
-                .then(function (response) {
-                    return response.text().then(function (bodyText) {
-                        var payload = null;
-                        if (bodyText) {
-                            try {
-                                payload = JSON.parse(bodyText);
-                            } catch (error) {
-                                payload = null;
-                            }
-                        }
-                        if (payload && typeof payload.success === 'boolean') {
-                            return payload;
-                        }
-                        var message = 'Upload failed.';
-                        if (response && !response.ok) {
-                            message = 'Unexpected server response (HTTP ' + response.status + ').';
-                        } else if (bodyText) {
-                            message = 'Unexpected non-JSON response: ' + bodyText.substring(0, 160);
-                        }
-                        throw new Error(message);
-                    });
-                })
-                .then(function (payload) {
-                    if (payload.success) {
-                        result.className = 'btp-payment-proof__result alert alert-success';
-                        result.textContent = payload.message || 'Upload successful.';
-                        form.reset();
-                    } else {
-                        result.className = 'btp-payment-proof__result alert alert-danger';
-                        result.textContent = (payload.error && payload.error.message) ? payload.error.message : 'Upload failed.';
-                    }
-                })
-                .catch(function (error) {
-                    result.className = 'btp-payment-proof__result alert alert-danger';
-                    result.textContent = (error && error.message) ? error.message : 'Upload failed. Please try again.';
-                });
-        });
-    }
-
-    function init() {
-        relabelPaymentMethod();
-        moveProofPanel();
-        initPaymentProofForm();
-    }
-
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', init, { once: true });
-    } else {
-        init();
-    }
-})();
-</script>
-HTML;
+    return $panelHtml . '<script>window.BTP_PAYMENT_LABEL = ' . $paymentLabel . ';</script>'
+        . '<script src="' . $src . '"></script>';
 }
 
 function btp_payment_proof_footer_html(?string $html = null): string
