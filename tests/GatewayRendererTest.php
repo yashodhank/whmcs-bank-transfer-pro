@@ -23,7 +23,7 @@ final class GatewayRendererTest extends TestCase
         $this->assertSame(['USD'], $banks->currencyLookups);
         $this->assertStringContainsString('Pay via', $html);
         $this->assertStringContainsString('IDBI Bank - Nanded', $html);
-        $this->assertStringContainsString('UPI:', $html);
+        $this->assertStringContainsString('UPI ID:', $html);
         $this->assertStringContainsString('securiace.com@idbi', $html);
         $this->assertStringContainsString('Account Number:', $html);
         $this->assertStringContainsString('500102000004909', $html);
@@ -32,6 +32,93 @@ final class GatewayRendererTest extends TestCase
         $this->assertStringContainsString('INV-300003464', $html);
         $this->assertStringNotContainsString('temporarily unavailable', $html);
         $this->assertStringNotContainsString('Bank Transfer Pro', $html);
+    }
+
+    public function testRendersOneRecommendedPackWithPayingAnotherWayEscapeHatch(): void
+    {
+        $html = GatewayRenderer::render('banktransferpro', [
+            'currency' => 'USD',
+            'amount' => '1500.00',
+            'invoiceid' => 10482,
+            'invoicenum' => 'INV-10482',
+        ], new RecordingBankLookup());
+
+        $this->assertSame(1, substr_count($html, 'btp-pack--recommended'));
+        $this->assertStringContainsString('Paying another way?', $html);
+        $this->assertStringContainsString('Send exactly', $html);
+        $this->assertStringContainsString('1500.00 USD', $html);
+        $this->assertStringContainsString('Payment reference', $html);
+        $this->assertStringContainsString('BTP-10482-', $html);
+        $this->assertStringContainsString('data-btp-copy="500102000004909"', $html);
+
+        // Local pack is recommended; UPI sits behind the escape hatch, never in the recommended pack.
+        $recommended = $this->between($html, '<section class="btp-pack btp-pack--local btp-pack--recommended"', '</section>');
+        $this->assertStringContainsString('NEFT', $recommended);
+        $this->assertStringNotContainsString('UPI', $recommended);
+    }
+
+    public function testForeignClientOnlySeesWirePackAndNeverUpi(): void
+    {
+        $bank = RecordingBankLookup::indiaProfile();
+        $html = GatewayRenderer::render('banktransferpro', [
+            'currency' => 'INR',
+            'amount' => '1000.00',
+            'invoiceid' => 7,
+            'clientdetails' => ['country' => 'US'],
+        ], new RecordingBankLookup(['INR' => $bank]));
+
+        $this->assertStringContainsString('btp-pack--wire', $html);
+        $this->assertStringContainsString('International wire', $html);
+        $this->assertStringContainsString('IBKLINBBXXX', $html);
+        $this->assertStringNotContainsString('btp-pack--local', $html);
+        $this->assertStringNotContainsString('btp-pack--instant', $html);
+        // The only UPI mention allowed on a wire pack is the explicit "do not use UPI" warning.
+        $this->assertStringNotContainsString('UPI ID', $html);
+        $this->assertStringNotContainsString('securiace.com@idbi', $html);
+        $this->assertStringContainsString('Do not use UPI for international payments', $html);
+        $this->assertStringNotContainsString('Paying another way?', $html);
+        $this->assertStringNotContainsString('NEFT', $html);
+    }
+
+    public function testMobileUserAgentRecommendsInstantPackForDomesticClient(): void
+    {
+        $_SERVER['HTTP_USER_AGENT'] = 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) Mobile/15E148';
+        try {
+            $html = GatewayRenderer::render('banktransferpro', [
+                'currency' => 'INR',
+                'invoiceid' => 9,
+                'clientdetails' => ['country' => 'IN'],
+            ], new RecordingBankLookup(['INR' => RecordingBankLookup::indiaProfile()]));
+        } finally {
+            unset($_SERVER['HTTP_USER_AGENT']);
+        }
+
+        $this->assertStringContainsString('btp-pack--instant btp-pack--recommended', $html);
+        $this->assertStringContainsString('Pay in seconds', $html);
+    }
+
+    public function testCurrencyMismatchWithoutFxAcceptanceFailsHonestly(): void
+    {
+        $bank = RecordingBankLookup::indiaProfile();
+        $html = GatewayRenderer::render('banktransferpro', [
+            'currency' => 'USD',
+            'amount' => '10.00',
+            'invoiceid' => 11,
+        ], new RecordingBankLookup(['USD' => $bank]));
+
+        $this->assertStringContainsString('btp-pack-error', $html);
+        $this->assertStringContainsString('receives INR but your invoice is in USD', $html);
+        $this->assertStringNotContainsString('500102000004909', $html);
+    }
+
+    private function between(string $html, string $start, string $end): string
+    {
+        $from = strpos($html, $start);
+        $this->assertNotFalse($from, 'start marker not found: ' . $start);
+        $to = strpos($html, $end, (int) $from);
+        $this->assertNotFalse($to);
+
+        return substr($html, (int) $from, (int) $to - (int) $from);
     }
 
     public function testRenderFailsClosedWhenParamsCurrencyCannotSelectABank(): void
@@ -108,6 +195,34 @@ final class RecordingBankLookup implements BankLookup
             ],
         ]
     ) {
+    }
+
+    /**
+     * One INR profile exposing local + UPI + wire on a single row.
+     *
+     * @return array<string, mixed>
+     */
+    public static function indiaProfile(): array
+    {
+        return [
+            'gateway_slug' => 'banktransferpro',
+            'bank_name' => 'IDBI Bank',
+            'branch_name' => 'NANDED',
+            'currency_code' => 'INR',
+            'country_code' => 'IN',
+            'invoice_label' => 'IDBI Bank - Nanded',
+            'display_name' => 'IDBI Bank — NANDED',
+            'account_name' => 'SECURIACE TECHNOLOGIES',
+            'account_number' => '500102000004909',
+            'account_details' => '',
+            'capabilities' => ['local_transfer', 'instant_alias', 'international_wire'],
+            'identifiers' => ['ifsc' => 'IBKL0000500', 'upi' => 'securiace.com@idbi', 'swift_bic' => 'IBKLINBBXXX'],
+            'beneficiary_address' => 'Nanded, Maharashtra, India',
+            'bank_address' => 'IDBI Bank, Nanded',
+            'prefer_charge_code' => 'OUR',
+            'wire_purpose_hint' => 'P0802 - Software consultancy',
+            'pack_notes' => [],
+        ];
     }
 
     public function findBySlug(string $slug): ?array

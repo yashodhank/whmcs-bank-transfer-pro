@@ -149,28 +149,31 @@ final class CsrfUxContractTest extends TestCase
 
     public function testProofFormParsesResponseTextThenJson(): void
     {
-        $hooks = $this->readModule('hooks.php');
+        $script = $this->readModule('assets/js/client.js');
 
-        $this->assertStringContainsString('response.text()', $hooks);
-        $this->assertStringNotContainsString('return response.json();', $hooks);
+        $this->assertStringContainsString('response.text()', $script);
+        $this->assertStringNotContainsString('return response.json();', $script);
     }
 
     public function testInvoiceFooterRelabelsGenericGatewayTextWithBankLabel(): void
     {
         $hooks = $this->readModule('hooks.php');
+        $script = $this->readModule('assets/js/client.js');
 
-        $this->assertStringContainsString("select[name=\"paymentmethod\"]", $hooks);
+        $this->assertStringContainsString("select[name=\"paymentmethod\"]", $script);
         $this->assertStringContainsString('btp_payment_label', $hooks);
-        $this->assertStringContainsString('Pay via', $hooks);
+        $this->assertStringContainsString('BTP_PAYMENT_LABEL', $hooks);
+        $this->assertStringContainsString('Pay via', $script);
     }
 
     public function testPaymentProofPanelIncludesSupportFallback(): void
     {
         $hooks = $this->readModule('hooks.php');
+        $panel = $this->readModule('lib/Client/ProofPanel.php');
 
-        $this->assertStringContainsString('Open Support Instead', $hooks);
-        $this->assertStringContainsString('reply to your invoice email', $hooks);
-        $this->assertStringContainsString('submitticket.php?step=2&deptid=', $hooks);
+        $this->assertStringContainsString('Open Support Instead', $panel);
+        $this->assertStringContainsString('reply to your invoice email', $panel);
+        $this->assertStringContainsString('submitticket.php?step=2&deptid=', $hooks . $panel);
     }
 
     public function testUploadCsrfFailureIsCaughtAsJson(): void
