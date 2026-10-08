@@ -8,8 +8,15 @@ use BankTransferPro\Gateway\GatewayActivator;
 use BankTransferPro\Gateway\GatewayFileWriter;
 use BankTransferPro\Gateway\GatewayPathResolver;
 use BankTransferPro\Gateway\SlugGenerator;
+use BankTransferPro\Packs\BankProfile;
+use BankTransferPro\Packs\CountryList;
+use BankTransferPro\Packs\InstructionPackEngine;
+use BankTransferPro\Packs\PackRenderer;
+use BankTransferPro\Packs\PayerContext;
+use BankTransferPro\Packs\ReceiveProfileValidator;
 use BankTransferPro\Repository\BankRepository;
 use BankTransferPro\Support\RuntimeEnvironment;
+use BankTransferPro\Support\WhmcsInput;
 use WHMCS\Database\Capsule;
 
 final class AjaxController
@@ -39,13 +46,14 @@ final class AjaxController
             'create' => $this->createBank(),
             'update' => $this->updateBank(),
             'delete' => $this->deleteBank(),
+            'preview' => $this->previewBank(),
             default => JsonResponse::error('UNKNOWN_ACTION', 'Unknown action: ' . $action, 404),
         };
     }
 
     private function listBanks(): never
     {
-        JsonResponse::success(['banks' => $this->bankRepository->all()]);
+        JsonResponse::success(['banks' => array_map($this->withEffectiveProfile(...), $this->bankRepository->all())]);
     }
 
     private function getBank(): never
@@ -57,7 +65,7 @@ final class AjaxController
             JsonResponse::error('NOT_FOUND', 'Bank not found.', 404);
         }
 
-        JsonResponse::success(['bank' => $bank]);
+        JsonResponse::success(['bank' => $this->withEffectiveProfile($bank)]);
     }
 
     private function createBank(): never
@@ -97,26 +105,17 @@ final class AjaxController
                 $gatewayActivated = true;
             }
 
-            $id = $this->bankRepository->create([
+            $id = $this->bankRepository->create(array_merge($payload, [
                 'gateway_slug' => $slug,
-                'bank_name' => $payload['bank_name'],
-                'branch_name' => $payload['branch_name'],
-                'currency_code' => $payload['currency_code'],
-                'account_details' => $payload['account_details'],
                 'display_name' => $displayName,
-                'invoice_label' => $payload['invoice_label'],
-                'upi_id' => $payload['upi_id'],
-                'account_name' => $payload['account_name'],
-                'account_number' => $payload['account_number'],
-                'ifsc_code' => $payload['ifsc_code'],
-            ]);
+            ]));
         } catch (\Throwable $e) {
             $this->cleanupFailedCreate($slug, $gatewayActivated);
             JsonResponse::error('CREATE_FAILED', $e->getMessage(), 500);
         }
 
         $bank = $this->bankRepository->findById($id);
-        JsonResponse::success(['bank' => $bank], 'Bank created successfully.');
+        JsonResponse::success(['bank' => $bank === null ? null : $this->withEffectiveProfile($bank)], 'Bank created successfully.');
     }
 
     private function updateBank(): never
@@ -155,23 +154,15 @@ final class AjaxController
                 $this->activator->updateSettings($slug, $displayName, $payload['currency_code']);
             }
 
-            $this->bankRepository->update($id, [
-                'bank_name' => $payload['bank_name'],
-                'branch_name' => $payload['branch_name'],
-                'currency_code' => $payload['currency_code'],
-                'account_details' => $payload['account_details'],
+            $this->bankRepository->update($id, array_merge($payload, [
                 'display_name' => $displayName,
-                'invoice_label' => $payload['invoice_label'],
-                'upi_id' => $payload['upi_id'],
-                'account_name' => $payload['account_name'],
-                'account_number' => $payload['account_number'],
-                'ifsc_code' => $payload['ifsc_code'],
-            ]);
+            ]));
         } catch (\Throwable $e) {
             JsonResponse::error('UPDATE_FAILED', $e->getMessage(), 500);
         }
 
-        JsonResponse::success(['bank' => $this->bankRepository->findById($id)], 'Bank updated successfully.');
+        $updated = $this->bankRepository->findById($id);
+        JsonResponse::success(['bank' => $updated === null ? null : $this->withEffectiveProfile($updated)], 'Bank updated successfully.');
     }
 
     private function deleteBank(): never
@@ -205,62 +196,85 @@ final class AjaxController
     }
 
     /**
-     * @return array{
-     *   bank_name: string,
-     *   branch_name: string,
-     *   currency_code: string,
-     *   account_details: string,
-     *   invoice_label: string,
-     *   upi_id: string,
-     *   account_name: string,
-     *   account_number: string,
-     *   ifsc_code: string
-     * }
+     * @return array<string, mixed>
      */
     private function validatedPayload(): array
     {
-        $input = $_POST;
+        $result = ReceiveProfileValidator::validate(WhmcsInput::decode($_POST));
+        $profile = $result['profile'];
 
-        $bankName = trim((string) ($input['bank_name'] ?? ''));
-        $branchName = trim((string) ($input['branch_name'] ?? ''));
-        $currencyCode = strtoupper(trim((string) ($input['currency_code'] ?? '')));
-        $accountDetails = trim((string) ($input['account_details'] ?? ''));
-        $invoiceLabel = trim((string) ($input['invoice_label'] ?? ''));
-        $upiId = trim((string) ($input['upi_id'] ?? ''));
-        $accountName = trim((string) ($input['account_name'] ?? ''));
-        $accountNumber = trim((string) ($input['account_number'] ?? ''));
-        $ifscCode = strtoupper(trim((string) ($input['ifsc_code'] ?? '')));
-
-        if ($bankName === '') {
-            JsonResponse::error('VALIDATION_ERROR', 'Bank name is required.');
+        $errors = $result['errors'];
+        if ($errors === [] && ! $this->currencyExists((string) $profile['currency_code'])) {
+            $errors[] = 'Currency code is not configured in WHMCS.';
         }
 
-        if ($currencyCode === '' || strlen($currencyCode) !== 3) {
-            JsonResponse::error('VALIDATION_ERROR', 'A valid 3-letter currency code is required.');
+        if ($errors !== []) {
+            JsonResponse::error('VALIDATION_ERROR', $errors[0]);
         }
 
-        if ($accountDetails === '' && $upiId === '' && $accountNumber === '') {
-            JsonResponse::error(
-                'VALIDATION_ERROR',
-                'Provide bank account details, a UPI ID, or an account number for the invoice payment block.'
-            );
+        return $profile;
+    }
+
+    /**
+     * Renders the exact invoice experience for three payer contexts from the unsaved draft.
+     */
+    private function previewBank(): never
+    {
+        $result = ReceiveProfileValidator::validate(WhmcsInput::decode($_POST));
+        $profile = $result['profile'];
+
+        if ($result['errors'] !== []) {
+            JsonResponse::error('VALIDATION_ERROR', $result['errors'][0]);
         }
 
-        if (! $this->currencyExists($currencyCode)) {
-            JsonResponse::error('VALIDATION_ERROR', 'Currency code is not configured in WHMCS.');
-        }
-
-        return [
-            'bank_name' => $bankName,
-            'branch_name' => $branchName,
-            'currency_code' => $currencyCode,
-            'account_details' => $accountDetails,
-            'invoice_label' => $invoiceLabel,
-            'upi_id' => $upiId,
-            'account_name' => $accountName,
-            'account_number' => $accountNumber,
-            'ifsc_code' => $ifscCode,
+        $bank = array_merge($profile, [
+            'display_name' => BankRepository::buildDisplayName($profile['bank_name'], $profile['branch_name']),
+        ]);
+        $label = BankRepository::buildInvoiceLabel($bank);
+        $country = (string) $profile['country_code'];
+        $abroad = $country === 'US' ? 'GB' : 'US';
+        $invoice = [
+            'id' => 10482,
+            'number' => '10482',
+            'amount' => '1000.00',
+            'currency' => (string) $profile['currency_code'],
         ];
+
+        $contexts = [
+            ['id' => 'domestic', 'title' => 'Client in ' . CountryList::name($country) . ' (desktop)', 'payer' => PayerContext::fromCountry($country, false)],
+            ['id' => 'mobile', 'title' => 'Client in ' . CountryList::name($country) . ' (phone)', 'payer' => PayerContext::fromCountry($country, true)],
+            ['id' => 'abroad', 'title' => 'Client abroad (' . CountryList::name($abroad) . ')', 'payer' => PayerContext::fromCountry($abroad, false)],
+        ];
+
+        $previews = [];
+        foreach ($contexts as $context) {
+            $packSet = InstructionPackEngine::build($bank, $context['payer'], $invoice);
+            $previews[] = [
+                'id' => $context['id'],
+                'title' => $context['title'],
+                'recommended' => $packSet['recommended'],
+                'html' => PackRenderer::render($packSet, $label),
+            ];
+        }
+
+        JsonResponse::success(['previews' => $previews]);
+    }
+
+    /**
+     * Resolve legacy columns into the effective profile so the wizard can edit un-migrated rows.
+     *
+     * @param array<string, mixed> $bank
+     * @return array<string, mixed>
+     */
+    private function withEffectiveProfile(array $bank): array
+    {
+        $bank['country_code'] = BankProfile::countryCode($bank);
+        $bank['capabilities'] = BankProfile::capabilities($bank);
+        $bank['identifiers'] = BankProfile::identifiers($bank);
+        $bank['pack_notes'] = BankProfile::packNotes($bank);
+        $bank['prefer_charge_code'] = BankProfile::chargeCode($bank);
+
+        return $bank;
     }
 
     private function currencyExists(string $currencyCode): bool

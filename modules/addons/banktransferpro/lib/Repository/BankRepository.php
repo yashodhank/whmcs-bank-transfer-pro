@@ -75,36 +75,14 @@ final class BankRepository implements BankLookup
     }
 
     /**
-     * @param array{
-     *   bank_name: string,
-     *   branch_name: string,
-     *   currency_code: string,
-     *   account_details: string,
-     *   display_name: string,
-     *   gateway_slug: string,
-     *   invoice_label?: string,
-     *   upi_id?: string,
-     *   account_name?: string,
-     *   account_number?: string,
-     *   ifsc_code?: string
-     * } $data
+     * @param array<string, mixed> $data
      */
     public function create(array $data): int
     {
         $now = date('Y-m-d H:i:s');
 
-        return (int) Capsule::table('mod_btp_banks')->insertGetId([
+        return (int) Capsule::table('mod_btp_banks')->insertGetId(array_merge([
             'gateway_slug' => $data['gateway_slug'],
-            'bank_name' => $data['bank_name'],
-            'branch_name' => $data['branch_name'],
-            'currency_code' => strtoupper($data['currency_code']),
-            'account_details' => $data['account_details'],
-            'display_name' => $data['display_name'],
-            'invoice_label' => trim((string) ($data['invoice_label'] ?? '')),
-            'upi_id' => trim((string) ($data['upi_id'] ?? '')),
-            'account_name' => trim((string) ($data['account_name'] ?? '')),
-            'account_number' => trim((string) ($data['account_number'] ?? '')),
-            'ifsc_code' => strtoupper(trim((string) ($data['ifsc_code'] ?? ''))),
             'duplicate_key' => DuplicateGuard::buildDuplicateKey(
                 $data['bank_name'],
                 $data['branch_name'],
@@ -113,43 +91,59 @@ final class BankRepository implements BankLookup
             'is_active' => 1,
             'created_at' => $now,
             'updated_at' => $now,
-        ]);
+        ], self::persistedColumns($data)));
     }
 
     /**
-     * @param array{
-     *   bank_name: string,
-     *   branch_name: string,
-     *   currency_code: string,
-     *   account_details: string,
-     *   display_name: string,
-     *   invoice_label?: string,
-     *   upi_id?: string,
-     *   account_name?: string,
-     *   account_number?: string,
-     *   ifsc_code?: string
-     * } $data
+     * @param array<string, mixed> $data
      */
     public function update(int $id, array $data): void
     {
-        Capsule::table('mod_btp_banks')->where('id', $id)->update([
-            'bank_name' => $data['bank_name'],
-            'branch_name' => $data['branch_name'],
-            'currency_code' => strtoupper($data['currency_code']),
-            'account_details' => $data['account_details'],
-            'display_name' => $data['display_name'],
-            'invoice_label' => trim((string) ($data['invoice_label'] ?? '')),
-            'upi_id' => trim((string) ($data['upi_id'] ?? '')),
-            'account_name' => trim((string) ($data['account_name'] ?? '')),
-            'account_number' => trim((string) ($data['account_number'] ?? '')),
-            'ifsc_code' => strtoupper(trim((string) ($data['ifsc_code'] ?? ''))),
+        Capsule::table('mod_btp_banks')->where('id', $id)->update(array_merge([
             'duplicate_key' => DuplicateGuard::buildDuplicateKey(
                 $data['bank_name'],
                 $data['branch_name'],
                 $data['currency_code']
             ),
             'updated_at' => date('Y-m-d H:i:s'),
-        ]);
+        ], self::persistedColumns($data)));
+    }
+
+    /**
+     * Columns shared by insert and update. Legacy upi_id / ifsc_code stay in sync with the
+     * identifiers JSON so older readers (and rollbacks) keep working.
+     *
+     * @param array<string, mixed> $data
+     * @return array<string, mixed>
+     */
+    private static function persistedColumns(array $data): array
+    {
+        $identifiers = is_array($data['identifiers'] ?? null) ? $data['identifiers'] : [];
+        $capabilities = is_array($data['capabilities'] ?? null) ? array_values($data['capabilities']) : [];
+        $packNotes = is_array($data['pack_notes'] ?? null) ? $data['pack_notes'] : [];
+
+        return [
+            'bank_name' => $data['bank_name'],
+            'branch_name' => $data['branch_name'],
+            'currency_code' => strtoupper($data['currency_code']),
+            'country_code' => strtoupper(trim((string) ($data['country_code'] ?? ''))),
+            'account_details' => $data['account_details'],
+            'display_name' => $data['display_name'],
+            'invoice_label' => trim((string) ($data['invoice_label'] ?? '')),
+            'upi_id' => trim((string) ($identifiers['upi'] ?? $data['upi_id'] ?? '')),
+            'account_name' => trim((string) ($data['account_name'] ?? '')),
+            'account_number' => trim((string) ($data['account_number'] ?? '')),
+            'ifsc_code' => strtoupper(trim((string) ($identifiers['ifsc'] ?? $data['ifsc_code'] ?? ''))),
+            'capabilities' => json_encode($capabilities, JSON_THROW_ON_ERROR),
+            'identifiers' => json_encode($identifiers === [] ? new \stdClass() : $identifiers, JSON_THROW_ON_ERROR),
+            'beneficiary_address' => trim((string) ($data['beneficiary_address'] ?? '')),
+            'bank_address' => trim((string) ($data['bank_address'] ?? '')),
+            'intermediary_bic' => strtoupper(trim((string) ($data['intermediary_bic'] ?? ''))),
+            'prefer_charge_code' => strtoupper(trim((string) ($data['prefer_charge_code'] ?? 'OUR'))) ?: 'OUR',
+            'accept_fx_receive' => ! empty($data['accept_fx_receive']) ? 1 : 0,
+            'wire_purpose_hint' => trim((string) ($data['wire_purpose_hint'] ?? '')),
+            'pack_notes' => json_encode($packNotes === [] ? new \stdClass() : $packNotes, JSON_THROW_ON_ERROR),
+        ];
     }
 
     public function delete(int $id): void
@@ -242,9 +236,36 @@ final class BankRepository implements BankLookup
             'account_name' => (string) ($row->account_name ?? ''),
             'account_number' => (string) ($row->account_number ?? ''),
             'ifsc_code' => (string) ($row->ifsc_code ?? ''),
+            'country_code' => (string) ($row->country_code ?? ''),
+            'capabilities' => self::decodeJson($row->capabilities ?? null, true),
+            'identifiers' => self::decodeJson($row->identifiers ?? null, false),
+            'beneficiary_address' => (string) ($row->beneficiary_address ?? ''),
+            'bank_address' => (string) ($row->bank_address ?? ''),
+            'intermediary_bic' => (string) ($row->intermediary_bic ?? ''),
+            'prefer_charge_code' => (string) ($row->prefer_charge_code ?? 'OUR'),
+            'accept_fx_receive' => (bool) ($row->accept_fx_receive ?? false),
+            'wire_purpose_hint' => (string) ($row->wire_purpose_hint ?? ''),
+            'pack_notes' => self::decodeJson($row->pack_notes ?? null, false),
             'is_active' => (bool) $row->is_active,
             'created_at' => (string) $row->created_at,
             'updated_at' => (string) $row->updated_at,
         ];
+    }
+
+    /**
+     * @return array<int|string, mixed>
+     */
+    private static function decodeJson(mixed $value, bool $asList): array
+    {
+        if (! is_string($value) || trim($value) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($value, true);
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        return $asList ? array_values($decoded) : $decoded;
     }
 }

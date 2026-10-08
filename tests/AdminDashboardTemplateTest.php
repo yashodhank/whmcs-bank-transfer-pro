@@ -55,19 +55,44 @@ final class AdminDashboardTemplateTest extends TestCase
         );
     }
 
-    public function testDashboardFormIncludesStructuredInvoiceFields(): void
+    public function testDashboardIsAReceiveProfileWizard(): void
     {
         $template = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/templates/admin/dashboard.tpl');
         $script = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/assets/js/admin.js');
 
         $this->assertIsString($template);
         $this->assertIsString($script);
-        $this->assertStringContainsString('name="invoice_label"', $template);
-        $this->assertStringContainsString('name="upi_id"', $template);
-        $this->assertStringContainsString('name="account_name"', $template);
-        $this->assertStringContainsString('name="account_number"', $template);
-        $this->assertStringContainsString('name="ifsc_code"', $template);
-        $this->assertStringContainsString("invoice_label: document.getElementById('btp-invoice-label').value", $script);
-        $this->assertStringContainsString("upi_id: document.getElementById('btp-upi-id').value", $script);
+
+        foreach ([
+            'name="country_code"',
+            'name="currency_code"',
+            'name="account_name"',
+            'name="account_number"',
+            'name="invoice_label"',
+            'name="beneficiary_address"',
+            'name="prefer_charge_code"',
+            'name="accept_fx_receive"',
+            'name="wire_purpose_hint"',
+            'data-btp-cap="local_transfer"',
+            'data-btp-cap="instant_alias"',
+            'data-btp-cap="international_wire"',
+            'id="btp-preview"',
+        ] as $needle) {
+            $this->assertStringContainsString($needle, $template);
+        }
+
+        $this->assertStringContainsString('registry: {$registry|@json_encode nofilter}', $template);
+        $this->assertStringContainsString("capabilities: enabledCapabilities().join(',')", $script);
+        $this->assertStringContainsString("identifiers: JSON.stringify(collectIdentifiers())", $script);
+        $this->assertStringContainsString("apiRequest('preview', 'POST', buildPayload())", $script);
+    }
+
+    public function testWizardNoLongerShipsAlwaysVisibleSchemeColumns(): void
+    {
+        $template = file_get_contents(__DIR__ . '/../modules/addons/banktransferpro/templates/admin/dashboard.tpl');
+
+        $this->assertIsString($template);
+        $this->assertStringNotContainsString('name="upi_id"', $template);
+        $this->assertStringNotContainsString('name="ifsc_code"', $template);
     }
 }

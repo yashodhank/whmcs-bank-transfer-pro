@@ -47,3 +47,158 @@
 .btp-payment-proof__result {
     margin-top: 12px;
 }
+
+/* ---- Instruction packs ---- */
+.btp-amount-strip {
+    margin: 0 0 12px;
+    padding: 10px 14px;
+    border-left: 4px solid #337ab7;
+    background: #f5f9fc;
+    font-size: 15px;
+}
+
+.btp-reference-hero {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px dashed #999;
+    border-radius: 4px;
+    background: #fffdf3;
+}
+
+.btp-reference-hero__label {
+    display: block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+}
+
+.btp-reference-hero__value {
+    display: inline-block;
+    margin: 4px 8px 4px 0;
+    padding: 2px 8px;
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    user-select: all;
+}
+
+.btp-reference-hero__help {
+    margin: 4px 0 0;
+    font-size: 12px;
+    color: #666;
+}
+
+.btp-pack {
+    margin: 0 0 16px;
+    padding: 12px 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.btp-pack--recommended {
+    border-color: #5cb85c;
+    box-shadow: 0 0 0 1px #5cb85c inset;
+}
+
+.btp-pack__header {
+    margin-bottom: 8px;
+}
+
+.btp-pack__title {
+    font-size: 16px;
+    font-weight: 700;
+}
+
+.btp-pack__subtitle {
+    font-size: 12px;
+    color: #666;
+}
+
+.btp-bank-details__value {
+    user-select: all;
+    overflow-wrap: anywhere;
+}
+
+.btp-copy {
+    margin-left: 6px;
+}
+
+.btp-pack__chips {
+    margin: 8px 0;
+}
+
+.btp-pack__chips-label {
+    margin-right: 6px;
+    font-size: 12px;
+    color: #666;
+}
+
+.btp-chip {
+    display: inline-block;
+    margin: 0 4px 4px 0;
+    padding: 1px 8px;
+    border-radius: 10px;
+    background: #eee;
+    font-size: 12px;
+}
+
+.btp-pack__notes {
+    margin: 8px 0 0;
+    padding-left: 18px;
+    font-size: 13px;
+}
+
+.btp-pack__timeline {
+    margin: 8px 0 0;
+    font-size: 13px;
+}
+
+.btp-pack-alt {
+    margin: 8px 0 16px;
+}
+
+.btp-pack-alt > summary {
+    cursor: pointer;
+    margin-bottom: 10px;
+    font-weight: 700;
+}
+
+.btp-payment-proof__reference {
+    margin-bottom: 12px;
+}
+
+/* Stock viewinvoice centres the payment block; keep instructions readable. */
+.btp-packs {
+    max-width: 520px;
+    margin-left: auto;
+    text-align: left;
+}
+
+.btp-payment-proof {
+    margin: 24px 0;
+    padding: 16px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    text-align: left;
+}
+
+.btp-payment-proof .form-group {
+    margin-bottom: 12px;
+}
+
+.btp-payment-proof__amount-row {
+    display: flex;
+    gap: 8px;
+}
+
+.btp-payment-proof__amount-row .form-control:first-child {
+    flex: 1 1 auto;
+}
+
+.btp-payment-proof__currency {
+    flex: 0 0 5em;
+    width: 5em;
+    text-transform: uppercase;
+    text-align: center;
+}

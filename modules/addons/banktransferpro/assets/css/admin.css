@@ -29,9 +29,73 @@
 }
 
 .btp-admin-scope .modal-body textarea {
-    min-height: 140px;
+    min-height: 56px;
 }
 
 .btp-admin-scope .modal-body h5 {
     margin-top: 20px;
+}
+
+.btp-admin-scope .btp-wizard-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.btp-admin-scope .btp-wizard-steps li {
+    padding: 4px 10px;
+    border-radius: 3px;
+    background: #f0f0f0;
+    color: #666;
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.btp-admin-scope .btp-wizard-steps li.active {
+    background: #337ab7;
+    color: #fff;
+    font-weight: 700;
+}
+
+.btp-admin-scope .btp-cap-block {
+    margin-bottom: 14px;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.btp-admin-scope .btp-cap-toggle {
+    margin: 0;
+    font-weight: normal;
+}
+
+.btp-admin-scope .btp-cap-fields {
+    margin-top: 10px;
+}
+
+.btp-admin-scope .btp-preview {
+    margin-bottom: 18px;
+    padding: 10px 14px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.btp-admin-scope .btp-preview h5 {
+    margin-top: 0;
+}
+
+.btp-admin-scope .btp-preview .btp-copy {
+    display: none;
+}
+
+.btp-admin-scope .btp-cap-badge {
+    display: inline-block;
+    margin-right: 4px;
+    padding: 0 6px;
+    border-radius: 8px;
+    background: #e8eef4;
+    font-size: 11px;
 }
