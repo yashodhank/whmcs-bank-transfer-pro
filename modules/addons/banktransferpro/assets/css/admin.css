@@ -99,3 +99,9 @@
     background: #e8eef4;
     font-size: 11px;
 }
+
+.btp-admin-scope .btp-cap-badge--warn {
+    background: #fcf8e3;
+    border-color: #faebcc;
+    color: #8a6d3b;
+}

@@ -163,4 +163,39 @@ final class ReceiveProfileValidatorTest extends TestCase
 
         $this->assertSame('Quote the PO number', $result['profile']['pack_notes']['wire']);
     }
+
+    public function testLegacyRowWithoutPayeeNameCanBeResavedWithAWarning(): void
+    {
+        $input = $this->indiaInput(['account_name' => '', 'capabilities' => 'local_transfer,instant_alias', 'identifiers' => json_encode(['ifsc' => 'IBKL0000500', 'upi' => 'securiace.com@idbi'])]);
+
+        $result = ReceiveProfileValidator::validate($input, ['legacy_missing_payee' => true]);
+
+        $this->assertSame([], $result['errors']);
+        $this->assertSame([ReceiveProfileValidator::PAYEE_WARNING], $result['warnings']);
+        $this->assertSame('', $result['profile']['account_name']);
+    }
+
+    public function testNewProfileStillRequiresPayeeName(): void
+    {
+        $result = ReceiveProfileValidator::validate($this->indiaInput(['account_name' => '', 'capabilities' => 'local_transfer,instant_alias']));
+
+        $this->assertContains('Account name is required for local transfers.', $result['errors']);
+        $this->assertContains('Account name is required for instant payments.', $result['errors']);
+        $this->assertSame([], $result['warnings']);
+    }
+
+    public function testLegacyExemptionNeverCoversWireBeneficiaryName(): void
+    {
+        $result = ReceiveProfileValidator::validate($this->indiaInput(['account_name' => '']), ['legacy_missing_payee' => true]);
+
+        $this->assertContains('Beneficiary (account) name is required for international wires.', $result['errors']);
+    }
+
+    public function testSupplyingTheNameClearsTheWarning(): void
+    {
+        $result = ReceiveProfileValidator::validate($this->indiaInput(), ['legacy_missing_payee' => true]);
+
+        $this->assertSame([], $result['errors']);
+        $this->assertSame([], $result['warnings']);
+    }
 }

@@ -80,6 +80,7 @@
                         <div class="form-group">
                             <label for="btp-account-name">Legal beneficiary / account name</label>
                             <input type="text" class="form-control" id="btp-account-name" name="account_name" placeholder="{$_lang.account_name_placeholder|default:'SECURIACE TECHNOLOGIES'}" />
+                            <p class="help-block">Exactly as the bank holds it. Clients see it as the account / payee name and it is carried in the UPI payment link. Older profiles saved without it can still be edited, but add it as soon as you can.</p>
                         </div>
                         <div class="form-group">
                             <label for="btp-account-number">Account number</label>
