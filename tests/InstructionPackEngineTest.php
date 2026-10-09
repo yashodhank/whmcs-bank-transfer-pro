@@ -252,4 +252,42 @@ final class InstructionPackEngineTest extends TestCase
 
         return null;
     }
+
+    public function testUpiDeepLinkCarriesPayeeNameWhenAccountNameIsStored(): void
+    {
+        $set = InstructionPackEngine::build($this->india(), PayerContext::fromCountry('IN'), $this->invoice());
+        $deeplink = (string) $set['packs']['instant']['qr'][0]['deeplink'];
+
+        $this->assertStringContainsString('&pn=', $deeplink);
+        $this->assertStringContainsString('am=1000.00', $deeplink);
+    }
+
+    public function testLegacyProfileWithoutNameOmitsPayeeRowButNeverInventsALegalName(): void
+    {
+        $bank = $this->india(['account_name' => '']);
+        $set = InstructionPackEngine::build($bank, PayerContext::fromCountry('IN'), $this->invoice());
+
+        $this->assertNotContains('account_name', array_column($set['packs']['local']['fields'], 'key'));
+        $this->assertSame(['upi'], array_column($set['packs']['instant']['fields'], 'key'));
+        $this->assertStringNotContainsString('&pn=', (string) $set['packs']['instant']['qr'][0]['deeplink']);
+        $this->assertNotContains('Check that the payee name shown in your app matches before you confirm.', $set['packs']['instant']['notes']);
+    }
+
+    public function testUpiDeepLinkFallsBackToCompanyNameOnlyForTheQrPayload(): void
+    {
+        $bank = $this->india(['account_name' => '', 'payee_fallback' => 'Securiace Technologies']);
+        $set = InstructionPackEngine::build($bank, PayerContext::fromCountry('IN'), $this->invoice());
+
+        $this->assertStringContainsString('&pn=Securiace%20Technologies&', (string) $set['packs']['instant']['qr'][0]['deeplink']);
+        $this->assertNotContains('account_name', array_column($set['packs']['local']['fields'], 'key'));
+        $this->assertSame('', BankProfile::payeeName($bank));
+        $this->assertSame('Securiace Technologies', BankProfile::qrPayeeName($bank));
+    }
+
+    public function testStoredAccountNameWinsOverCompanyFallback(): void
+    {
+        $bank = $this->india(['payee_fallback' => 'Some Other Company']);
+
+        $this->assertSame($bank['account_name'], BankProfile::qrPayeeName($bank));
+    }
 }

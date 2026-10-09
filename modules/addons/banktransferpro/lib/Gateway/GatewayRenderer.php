@@ -14,6 +14,7 @@ use BankTransferPro\Repository\BankRepository;
 use BankTransferPro\Repository\SettingsRepository;
 use BankTransferPro\Support\InvoiceCurrencyResolver;
 use BankTransferPro\Support\ModuleFingerprint;
+use WHMCS\Config\Setting;
 
 final class GatewayRenderer
 {
@@ -115,7 +116,7 @@ final class GatewayRenderer
                 $bank = self::findByInvoiceCurrency($repo, $params, $resolver);
             }
 
-            return $bank;
+            return $bank === null ? null : self::withPayeeFallback($bank);
         } catch (\Throwable $exception) {
             if (function_exists('logActivity')) {
                 logActivity('Bank Transfer Pro: unable to load invoice bank details: ' . $exception->getMessage());
@@ -123,6 +124,22 @@ final class GatewayRenderer
 
             return null;
         }
+    }
+
+    /**
+     * @param array<string, mixed> $bank
+     * @return array<string, mixed>
+     */
+    private static function withPayeeFallback(array $bank): array
+    {
+        if (trim((string) ($bank['account_name'] ?? '')) === '' && class_exists(Setting::class)) {
+            $company = Setting::getValue('CompanyName');
+            if (is_string($company) && trim($company) !== '') {
+                $bank['payee_fallback'] = trim($company);
+            }
+        }
+
+        return $bank;
     }
 
     /**

@@ -118,6 +118,23 @@ final class BankProfile
         return in_array($code, ['OUR', 'SHA', 'BEN'], true) ? $code : self::DEFAULT_CHARGE_CODE;
     }
 
+    public static function payeeName(array $bank): string
+    {
+        return trim((string) ($bank['account_name'] ?? ''));
+    }
+
+    /**
+     * Display name carried in instant-alias QR codes (UPI `pn`). Falls back to the merchant's
+     * WHMCS company name when no legal account name was stored, so the deep link still names a payee.
+     * Never used for the printed Account Name / Beneficiary rows: those must be the legal name.
+     */
+    public static function qrPayeeName(array $bank): string
+    {
+        $name = self::payeeName($bank);
+
+        return $name !== '' ? $name : trim((string) ($bank['payee_fallback'] ?? ''));
+    }
+
     public static function acceptsFx(array $bank): bool
     {
         return filter_var($bank['accept_fx_receive'] ?? false, FILTER_VALIDATE_BOOLEAN);

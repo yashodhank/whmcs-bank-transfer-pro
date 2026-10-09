@@ -245,7 +245,9 @@ final class InstructionPackEngine
 
         self::addField($fields, 'account_name', 'Payee Name', (string) ($bank['account_name'] ?? ''));
 
-        $notes = ['Check that the payee name shown in your app matches before you confirm.'];
+        $notes = BankProfile::payeeName($bank) !== ''
+            ? ['Check that the payee name shown in your app matches before you confirm.']
+            : [];
         $extra = self::noteFor($bank, 'instant');
         if ($extra !== '') {
             $notes[] = $extra;
@@ -278,7 +280,7 @@ final class InstructionPackEngine
             if (! isset($identifiers[$scheme])) {
                 continue;
             }
-            $built = AliasQrPayload::build($scheme, $identifiers[$scheme], (string) ($bank['account_name'] ?? ''), $amount, $currency, $reference);
+            $built = AliasQrPayload::build($scheme, $identifiers[$scheme], BankProfile::qrPayeeName($bank), $amount, $currency, $reference);
             if ($built === null) {
                 continue;
             }
