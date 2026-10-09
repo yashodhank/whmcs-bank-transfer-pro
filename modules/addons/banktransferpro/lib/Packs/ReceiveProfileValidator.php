@@ -10,13 +10,20 @@ namespace BankTransferPro\Packs;
  */
 final class ReceiveProfileValidator
 {
+    public const PAYEE_WARNING = 'Legal beneficiary / account name is still empty. Clients will not see the account holder name; add it when you can.';
+
     /**
      * @param array<string, mixed> $input raw request input
-     * @return array{errors: list<string>, profile: array<string, mixed>}
+     * @param array{legacy_missing_payee?: bool} $context legacy_missing_payee: the stored row being edited
+     *        never had an account name (pre-wizard data); local/instant stay saveable with a warning
+     *        instead of blocking every edit. Wire still requires a beneficiary name.
+     * @return array{errors: list<string>, warnings: list<string>, profile: array<string, mixed>}
      */
-    public static function validate(array $input): array
+    public static function validate(array $input, array $context = []): array
     {
         $errors = [];
+        $warnings = [];
+        $legacyMissingPayee = ! empty($context['legacy_missing_payee']);
 
         $bankName = trim((string) ($input['bank_name'] ?? ''));
         $branchName = trim((string) ($input['branch_name'] ?? ''));
@@ -74,7 +81,11 @@ final class ReceiveProfileValidator
 
         if (in_array(SchemeRegistry::CAP_LOCAL, $capabilities, true)) {
             if ($accountName === '') {
-                $errors[] = 'Account name is required for local transfers.';
+                if ($legacyMissingPayee) {
+                    $warnings[] = self::PAYEE_WARNING;
+                } else {
+                    $errors[] = 'Account name is required for local transfers.';
+                }
             }
             if (! $hasAccount) {
                 $errors[] = 'Account number (or IBAN) is required for local transfers.';
@@ -104,7 +115,11 @@ final class ReceiveProfileValidator
                     : 'Enter an instant-payment ID (for example a UPI ID) or turn off instant payments.';
             }
             if ($accountName === '') {
-                $errors[] = 'Account name is required for instant payments.';
+                if ($legacyMissingPayee) {
+                    $warnings[] = self::PAYEE_WARNING;
+                } else {
+                    $errors[] = 'Account name is required for instant payments.';
+                }
             }
         }
 
@@ -145,6 +160,7 @@ final class ReceiveProfileValidator
 
         return [
             'errors' => $errors,
+            'warnings' => array_values(array_unique($warnings)),
             'profile' => [
                 'bank_name' => $bankName,
                 'branch_name' => $branchName,

@@ -21,6 +21,9 @@ use WHMCS\Database\Capsule;
 
 final class AjaxController
 {
+    /** @var list<string> */
+    private array $warnings = [];
+
     public function __construct(
         private readonly BankRepository $bankRepository = new BankRepository(),
         private readonly SlugGenerator $slugGenerator = new SlugGenerator(),
@@ -70,7 +73,7 @@ final class AjaxController
 
     private function createBank(): never
     {
-        $payload = $this->validatedPayload();
+        $payload = $this->validatedPayload(null);
         $this->assertCurrencySupportedForCurrentRuntime($payload['currency_code']);
 
         if ($this->bankRepository->duplicateExists(
@@ -127,7 +130,7 @@ final class AjaxController
             JsonResponse::error('NOT_FOUND', 'Bank not found.', 404);
         }
 
-        $payload = $this->validatedPayload();
+        $payload = $this->validatedPayload($existing);
         $this->assertCurrencySupportedForCurrentRuntime($payload['currency_code'], $id);
 
         if ($this->bankRepository->duplicateExists(
@@ -162,7 +165,10 @@ final class AjaxController
         }
 
         $updated = $this->bankRepository->findById($id);
-        JsonResponse::success(['bank' => $updated === null ? null : $this->withEffectiveProfile($updated)], 'Bank updated successfully.');
+        JsonResponse::success(
+            ['bank' => $updated === null ? null : $this->withEffectiveProfile($updated), 'warnings' => $this->warnings],
+            trim('Bank updated successfully. ' . implode(' ', $this->warnings))
+        );
     }
 
     private function deleteBank(): never
@@ -198,10 +204,11 @@ final class AjaxController
     /**
      * @return array<string, mixed>
      */
-    private function validatedPayload(): array
+    private function validatedPayload(?array $existing): array
     {
-        $result = ReceiveProfileValidator::validate(WhmcsInput::decode($_POST));
+        $result = ReceiveProfileValidator::validate(WhmcsInput::decode($_POST), self::validationContext($existing));
         $profile = $result['profile'];
+        $this->warnings = $result['warnings'];
 
         $errors = $result['errors'];
         if ($errors === [] && ! $this->currencyExists((string) $profile['currency_code'])) {
@@ -216,11 +223,26 @@ final class AjaxController
     }
 
     /**
+     * Rows saved before the wizard never stored an account name; editing them must not be blocked
+     * by a field they could never have filled in. New rows and rows that already have a name stay strict.
+     *
+     * @param array<string, mixed>|null $existing
+     * @return array{legacy_missing_payee: bool}
+     */
+    private static function validationContext(?array $existing): array
+    {
+        return ['legacy_missing_payee' => $existing !== null && trim((string) ($existing['account_name'] ?? '')) === ''];
+    }
+
+    /**
      * Renders the exact invoice experience for three payer contexts from the unsaved draft.
      */
     private function previewBank(): never
     {
-        $result = ReceiveProfileValidator::validate(WhmcsInput::decode($_POST));
+        $input = WhmcsInput::decode($_POST);
+        $editingId = (int) ($input['id'] ?? 0);
+        $existing = $editingId > 0 ? $this->bankRepository->findById($editingId) : null;
+        $result = ReceiveProfileValidator::validate($input, self::validationContext($existing));
         $profile = $result['profile'];
 
         if ($result['errors'] !== []) {
@@ -257,7 +279,7 @@ final class AjaxController
             ];
         }
 
-        JsonResponse::success(['previews' => $previews]);
+        JsonResponse::success(['previews' => $previews, 'warnings' => $result['warnings']]);
     }
 
     /**

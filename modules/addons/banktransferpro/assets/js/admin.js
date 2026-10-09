@@ -140,12 +140,13 @@
                 return '<span class="btp-cap-badge">' + escapeHtml(capabilityLabel(cap)) + '</span>';
             }).join('');
             var country = bank.country_code ? '<span class="btp-cap-badge">' + escapeHtml(bank.country_code) + '</span>' : '';
+            var payeeWarning = bank.account_name ? '' : '<span class="btp-cap-badge btp-cap-badge--warn" title="Clients will not see the account holder name until you add it (Edit &rarr; Account identity).">No payee name</span>';
             row.innerHTML =
                 '<td>' + escapeHtml(bank.id) + '</td>' +
                 '<td><code>' + escapeHtml(bank.gateway_slug) + '</code></td>' +
                 '<td>' + escapeHtml(bank.display_name) + '</td>' +
                 '<td class="btp-account-details" title="' + escapeHtml(detailsRaw) + '">' +
-                    country + badges + ' ' + escapeHtml(truncate(detailsRaw, 60)) +
+                    country + badges + payeeWarning + ' ' + escapeHtml(truncate(detailsRaw, 60)) +
                 '</td>' +
                 '<td>' + escapeHtml(bank.currency_code) + '</td>' +
                 '<td class="text-right btp-actions">' +
@@ -280,8 +281,10 @@
     }
 
     function buildPayload() {
+        var editingId = byId('btp-bank-id').value;
         var notes = Object.assign({}, wizard.packNotes, { prefer_instant: byId('btp-prefer-instant').checked });
         return {
+            id: editingId || undefined,
             bank_name: byId('btp-bank-name').value,
             branch_name: byId('btp-branch-name').value,
             currency_code: byId('btp-currency-code').value,
@@ -345,6 +348,9 @@
                 throw new Error(response.error ? response.error.message : 'Preview failed.');
             }
             target.innerHTML = '';
+            ((response.data && response.data.warnings) || []).forEach(function (warning) {
+                showAlert('warning', warning, 'modal');
+            });
             (response.data.previews || []).forEach(function (preview) {
                 var block = document.createElement('div');
                 block.className = 'btp-preview';
