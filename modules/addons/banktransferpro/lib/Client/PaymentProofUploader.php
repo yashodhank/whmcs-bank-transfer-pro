@@ -21,8 +21,9 @@ final class PaymentProofUploader
      */
     public function store(int $clientId, array $file): array
     {
-        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
-            throw new \InvalidArgumentException('File upload failed.');
+        $error = (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($error !== UPLOAD_ERR_OK) {
+            throw new \InvalidArgumentException(self::messageForUploadError($error));
         }
 
         $size = (int) ($file['size'] ?? 0);
@@ -30,9 +31,14 @@ final class PaymentProofUploader
             throw new \InvalidArgumentException('File exceeds the maximum allowed size.');
         }
 
-        $mime = $this->detectMimeType((string) ($file['tmp_name'] ?? ''));
+        $tmpName = (string) ($file['tmp_name'] ?? '');
+        $mime = $this->detectMimeType($tmpName);
         if (! in_array($mime, $this->settings->allowedMimeTypes(), true)) {
             throw new \InvalidArgumentException('File type is not allowed.');
+        }
+
+        if ($tmpName === '' || ! is_uploaded_file($tmpName)) {
+            throw new \InvalidArgumentException('File upload failed.');
         }
 
         $original = basename((string) ($file['name'] ?? 'upload.bin'));
@@ -45,7 +51,7 @@ final class PaymentProofUploader
         }
 
         $target = $directory . '/' . $stored;
-        if (! move_uploaded_file((string) $file['tmp_name'], $target)) {
+        if (! move_uploaded_file($tmpName, $target)) {
             throw new \RuntimeException('Unable to store uploaded file.');
         }
 
@@ -56,6 +62,17 @@ final class PaymentProofUploader
             'size' => $size,
             'path' => $target,
         ];
+    }
+
+    public static function messageForUploadError(int $error): string
+    {
+        return match ($error) {
+            UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE => 'File exceeds the maximum allowed size.',
+            UPLOAD_ERR_PARTIAL => 'The file upload was incomplete. Please try again.',
+            UPLOAD_ERR_NO_FILE => 'Please choose a file to upload.',
+            UPLOAD_ERR_NO_TMP_DIR, UPLOAD_ERR_CANT_WRITE, UPLOAD_ERR_EXTENSION => 'File upload failed.',
+            default => 'File upload failed.',
+        };
     }
 
     public function hasRecentProof(int $invoiceId): bool

@@ -55,7 +55,8 @@
     <div class="form-group">
         <label class="col-sm-3 control-label" for="btp-max-upload">Max upload size (MB)</label>
         <div class="col-sm-9">
-            <input type="number" min="1" class="form-control" name="max_upload_size_mb" id="btp-max-upload" value="{$settings.max_upload_size_mb|escape}" />
+            <input type="number" min="1" max="10" class="form-control" name="max_upload_size_mb" id="btp-max-upload" value="{$settings.max_upload_size_mb|escape}" />
+            <p class="help-block">Hard cap is 10 MB (enforced server-side).</p>
         </div>
     </div>
 

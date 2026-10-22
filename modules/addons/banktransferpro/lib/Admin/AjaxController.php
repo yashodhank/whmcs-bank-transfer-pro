@@ -35,23 +35,27 @@ final class AjaxController
 
     public function handle(): void
     {
-        $this->assertAdminAccess();
+        try {
+            $this->assertAdminAccess();
 
-        $action = (string) ($_REQUEST['btp_action'] ?? $_REQUEST['action'] ?? 'list');
+            $action = (string) ($_REQUEST['btp_action'] ?? $_REQUEST['action'] ?? 'list');
 
-        if (in_array($action, ['create', 'update', 'delete'], true)) {
-            $this->assertCsrf();
+            if (in_array($action, ['create', 'update', 'delete'], true)) {
+                $this->assertCsrf();
+            }
+
+            match ($action) {
+                'list' => $this->listBanks(),
+                'get' => $this->getBank(),
+                'create' => $this->createBank(),
+                'update' => $this->updateBank(),
+                'delete' => $this->deleteBank(),
+                'preview' => $this->previewBank(),
+                default => JsonResponse::error('UNKNOWN_ACTION', 'Unknown action: ' . $action, 404),
+            };
+        } catch (\Throwable) {
+            JsonResponse::error('SERVER_ERROR', 'Request failed.', 500);
         }
-
-        match ($action) {
-            'list' => $this->listBanks(),
-            'get' => $this->getBank(),
-            'create' => $this->createBank(),
-            'update' => $this->updateBank(),
-            'delete' => $this->deleteBank(),
-            'preview' => $this->previewBank(),
-            default => JsonResponse::error('UNKNOWN_ACTION', 'Unknown action: ' . $action, 404),
-        };
     }
 
     private function listBanks(): never

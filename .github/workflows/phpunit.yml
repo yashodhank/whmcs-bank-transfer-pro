@@ -2,7 +2,7 @@ name: PHPUnit
 
 on:
   push:
-    branches: [main, 'feat/**', 'fix/**', 'chore/**']
+    branches: [main, 'feat/**', 'fix/**', 'chore/**', 'cursor/**']
   pull_request:
 
 jobs:
@@ -12,7 +12,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        php: ['8.1', '8.2', '8.3']
+        # 8.1 is EOL with no upstream fix for CVE-2026-109618/109619.
+        # Prefer patched patch-levels: 8.2.35+, 8.3.36+, 8.4.27+, 8.5.12+.
+        php: ['8.2', '8.3', '8.4']
 
     steps:
       - name: Checkout
@@ -24,6 +26,9 @@ jobs:
           php-version: ${{ matrix.php }}
           coverage: none
           tools: composer:v2
+
+      - name: Show PHP version
+        run: php -v
 
       - name: Install dependencies
         run: composer install --no-interaction --prefer-dist --no-progress
