@@ -22,7 +22,11 @@ final class DashboardController
         $tab = (string) ($_GET['tab'] ?? 'dashboard');
 
         if (isset($_GET['action']) && $_GET['action'] === 'api') {
-            (new AjaxController())->handle();
+            try {
+                (new AjaxController())->handle();
+            } catch (\Throwable) {
+                JsonResponse::error('SERVER_ERROR', 'Request failed.', 500);
+            }
 
             return;
         }
@@ -140,7 +144,13 @@ final class DashboardController
         $settings->set('ticket_priority', trim((string) ($_POST['ticket_priority'] ?? 'Medium')));
         $settings->set('ticket_subject_template', trim((string) ($_POST['ticket_subject_template'] ?? '')));
         $settings->set('enable_proof_upload', isset($_POST['enable_proof_upload']) ? 'on' : '');
-        $settings->set('max_upload_size_mb', (string) max(1, (int) ($_POST['max_upload_size_mb'] ?? 5)));
+        $settings->set(
+            'max_upload_size_mb',
+            (string) max(1, min(
+                SettingsRepository::MAX_UPLOAD_SIZE_MB_HARD_CAP,
+                (int) ($_POST['max_upload_size_mb'] ?? 5)
+            ))
+        );
         $settings->set('allowed_mime_types', trim((string) ($_POST['allowed_mime_types'] ?? '')));
         $settings->set('upload_cooldown_hours', (string) max(0, (int) ($_POST['upload_cooldown_hours'] ?? 24)));
         $settings->set('auto_select_gateway', isset($_POST['auto_select_gateway']) ? 'on' : '');

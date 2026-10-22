@@ -10,6 +10,12 @@ class SettingsRepository
 {
     private const MODULE = 'banktransferpro';
 
+    /** Absolute ceiling for admin-configured proof uploads (MB). */
+    public const MAX_UPLOAD_SIZE_MB_HARD_CAP = 10;
+
+    /** Multipart form-field overhead allowance beyond the file size cap (bytes). */
+    public const UPLOAD_REQUEST_OVERHEAD_BYTES = 262144;
+
     public function get(string $key, ?string $default = null): ?string
     {
         $row = Capsule::table('tbladdonmodules')
@@ -57,11 +63,24 @@ class SettingsRepository
         return $this->get('enable_proof_upload', 'on') === 'on';
     }
 
-    public function maxUploadSizeBytes(): int
+    public function maxUploadSizeMb(): int
     {
         $mb = (int) ($this->get('max_upload_size_mb', '5') ?? '5');
 
-        return max(1, $mb) * 1024 * 1024;
+        return max(1, min(self::MAX_UPLOAD_SIZE_MB_HARD_CAP, $mb));
+    }
+
+    public function maxUploadSizeBytes(): int
+    {
+        return $this->maxUploadSizeMb() * 1024 * 1024;
+    }
+
+    /**
+     * Upper bound for Content-Length on proof upload requests (file cap + form overhead).
+     */
+    public function maxUploadRequestBytes(): int
+    {
+        return $this->maxUploadSizeBytes() + self::UPLOAD_REQUEST_OVERHEAD_BYTES;
     }
 
     /**

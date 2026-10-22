@@ -21,11 +21,14 @@ Primary shipping references:
 ## Requirements
 
 - WHMCS **8.13.x** or **9.x**
-- PHP **8.1+**
+- PHP **8.2+** (8.1 dropped: EOL, no upstream fix for CVE-2026-109618 / CVE-2026-109619)
+- Supported runtime floor for those CVEs (host must supply): **8.2.35+**, **8.3.36+**, **8.4.27+**, or **8.5.12+**
 - Composer
 - Mutable installs: writable `modules/gateways/`
 - Mutable installs: writable `modules/addons/banktransferpro/storage/proofs/`
 - Immutable installs: writable proof directory via `BTP_PROOFS_DIR` or `/var/www/storage/banktransferpro/proofs`
+
+> **Infra note:** this module inherits the WHMCS host PHP runtime. Patching PHP on the server is required for a complete CVE fix; this repo only hardens the proof-upload path and CI matrix.
 
 ## Installation
 

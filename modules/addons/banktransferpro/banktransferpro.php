@@ -23,7 +23,7 @@ function banktransferpro_config(): array
     return [
         'name' => 'Bank Transfer Pro',
         'description' => 'Multi-currency bank transfer gateways with auto-generated payment modules, invoice bank details, and client payment proof upload.',
-        'version' => '1.2.2',
+        'version' => '1.2.3',
         'author' => 'Securiace Technologies',
         'language' => 'english',
         'fields' => [],
@@ -110,7 +110,12 @@ function banktransferpro_clientarea(array $vars): array
 
     $action = trim((string) ($_REQUEST['action'] ?? ''));
     if ($action === 'upload-proof') {
-        (new UploadController())->handle();
+        try {
+            (new UploadController())->handle();
+        } catch (Throwable $e) {
+            // Avoid request-fatal paths that can leave PHP worker state unsafe (CVE-2026-109619).
+            \BankTransferPro\Admin\JsonResponse::error('UPLOAD_FAILED', 'Payment proof upload failed.', 500);
+        }
     }
 
     return [];

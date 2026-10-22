@@ -26,7 +26,7 @@ final class ReleaseVersionContractTest extends TestCase
         $this->assertSame(1, preg_match("/define\\('BTP_ADDON_ASSET_VERSION', '([0-9.]+)'\\)/", $this->read('hooks.php'), $assets));
 
         $this->assertSame($addon[1], $assets[1]);
-        $this->assertTrue(version_compare($addon[1], '1.2.2', '>='), 'Payee-name hotfix ships as 1.2.2 or later.');
+        $this->assertTrue(version_compare($addon[1], '1.2.3', '>='), 'Upload hardening ships as 1.2.3 or later.');
     }
 
     public function testAdminFlagsLegacyProfilesWithoutPayeeName(): void

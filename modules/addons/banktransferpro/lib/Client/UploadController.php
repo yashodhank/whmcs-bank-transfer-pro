@@ -30,48 +30,49 @@ final class UploadController
     {
         $stored = null;
 
-        if (! $this->settings->isProofUploadEnabled()) {
-            JsonResponse::error('FEATURE_DISABLED', 'Payment proof upload is disabled.', 403);
-        }
-
-        $this->assertClientLogin();
-        $this->assertCsrf();
-
-        $invoiceId = (int) ($_POST['invoiceid'] ?? 0);
-        $note = trim((string) ($_POST['note'] ?? ''));
-
-        $invoice = Capsule::table('tblinvoices')->where('id', $invoiceId)->first();
-        if ($invoice === null) {
-            JsonResponse::error('NOT_FOUND', 'Invoice not found.', 404);
-        }
-
-        $clientId = (int) ($_SESSION['uid'] ?? 0);
-        if ((int) $invoice->userid !== $clientId) {
-            JsonResponse::error('FORBIDDEN', 'You do not have access to this invoice.', 403);
-        }
-
-        $status = (string) $invoice->status;
-        if (! in_array($status, ['Unpaid', 'Payment Pending'], true)) {
-            JsonResponse::error('INVALID_STATUS', 'Payment proof can only be uploaded for unpaid invoices.');
-        }
-
-        $gateway = (string) $invoice->paymentmethod;
-        if (! $this->isSupportedGateway($gateway)) {
-            JsonResponse::error('INVALID_GATEWAY', 'This invoice is not using a Bank Transfer Pro gateway.');
-        }
-
-        if ($this->uploader->hasRecentProof($invoiceId)) {
-            JsonResponse::error(
-                'COOLDOWN_ACTIVE',
-                'A payment proof was recently submitted for this invoice. Please wait before uploading again.'
-            );
-        }
-
-        if (! isset($_FILES['proof']) || ! is_array($_FILES['proof'])) {
-            JsonResponse::error('VALIDATION_ERROR', 'Please choose a file to upload.');
-        }
-
         try {
+            if (! $this->settings->isProofUploadEnabled()) {
+                JsonResponse::error('FEATURE_DISABLED', 'Payment proof upload is disabled.', 403);
+            }
+
+            // Reject oversized bodies before invoice lookups or file processing.
+            $this->assertRequestSizeWithinLimit();
+
+            $this->assertClientLogin();
+            $this->assertCsrf();
+
+            $invoiceId = (int) ($_POST['invoiceid'] ?? 0);
+            $note = trim((string) ($_POST['note'] ?? ''));
+
+            $invoice = Capsule::table('tblinvoices')->where('id', $invoiceId)->first();
+            if ($invoice === null) {
+                JsonResponse::error('NOT_FOUND', 'Invoice not found.', 404);
+            }
+
+            $clientId = (int) ($_SESSION['uid'] ?? 0);
+            if ((int) $invoice->userid !== $clientId) {
+                JsonResponse::error('FORBIDDEN', 'You do not have access to this invoice.', 403);
+            }
+
+            $status = (string) $invoice->status;
+            if (! in_array($status, ['Unpaid', 'Payment Pending'], true)) {
+                JsonResponse::error('INVALID_STATUS', 'Payment proof can only be uploaded for unpaid invoices.');
+            }
+
+            $gateway = (string) $invoice->paymentmethod;
+            if (! $this->isSupportedGateway($gateway)) {
+                JsonResponse::error('INVALID_GATEWAY', 'This invoice is not using a Bank Transfer Pro gateway.');
+            }
+
+            if ($this->uploader->hasRecentProof($invoiceId)) {
+                JsonResponse::error(
+                    'COOLDOWN_ACTIVE',
+                    'A payment proof was recently submitted for this invoice. Please wait before uploading again.'
+                );
+            }
+
+            $proofFile = $this->requireSingleProofFile();
+
             $bank = $this->resolveBankForInvoice($invoice, $gateway);
             $invoiceCurrency = (new InvoiceCurrencyResolver())->codeFromInvoiceRecord($invoice);
             $packSet = $this->buildPackSet($invoice, $bank, $invoiceCurrency, $clientId);
@@ -85,7 +86,7 @@ final class UploadController
                 $bank !== null && BankProfile::acceptsFx($bank)
             );
 
-            $stored = $this->uploader->store($clientId, $_FILES['proof']);
+            $stored = $this->uploader->store($clientId, $proofFile);
 
             $subject = $this->tickets->renderSubject([
                 'invoiceid' => (string) $invoiceId,
@@ -131,8 +132,37 @@ final class UploadController
             if (is_array($stored)) {
                 $this->cleanupStoredProof($stored);
             }
-            JsonResponse::error('UPLOAD_FAILED', $e->getMessage(), 500);
+            JsonResponse::error('UPLOAD_FAILED', 'Payment proof upload failed.', 500);
         }
+    }
+
+    private function assertRequestSizeWithinLimit(): void
+    {
+        $declared = isset($_SERVER['CONTENT_LENGTH']) ? (int) $_SERVER['CONTENT_LENGTH'] : 0;
+        if ($declared > $this->settings->maxUploadRequestBytes()) {
+            JsonResponse::error('PAYLOAD_TOO_LARGE', 'Upload exceeds the maximum allowed size.', 413);
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function requireSingleProofFile(): array
+    {
+        if (! isset($_FILES['proof']) || ! is_array($_FILES['proof'])) {
+            JsonResponse::error('VALIDATION_ERROR', 'Please choose a file to upload.');
+        }
+
+        // Multipart multi-file fields arrive with array-shaped name/error/size entries.
+        if (is_array($_FILES['proof']['name'] ?? null)
+            || is_array($_FILES['proof']['error'] ?? null)
+            || is_array($_FILES['proof']['size'] ?? null)
+            || is_array($_FILES['proof']['tmp_name'] ?? null)
+        ) {
+            JsonResponse::error('VALIDATION_ERROR', 'Only one payment proof file may be uploaded.');
+        }
+
+        return $_FILES['proof'];
     }
 
     /**

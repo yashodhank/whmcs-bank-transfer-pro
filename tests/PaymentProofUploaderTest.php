@@ -26,6 +26,7 @@ final class PaymentProofUploaderTest extends TestCase
         file_put_contents($tmp, str_repeat('a', 2048));
 
         $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('File exceeds the maximum allowed size.');
         try {
             $uploader->store(1, [
                 'error' => UPLOAD_ERR_OK,
@@ -38,6 +39,28 @@ final class PaymentProofUploaderTest extends TestCase
         }
     }
 
+    public function testRejectsIniSizeUploadErrorCleanly(): void
+    {
+        $uploader = new PaymentProofUploader(new TestSettingsRepository(maxBytes: 1024, allowedMime: ['image/png']));
+
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('File exceeds the maximum allowed size.');
+        $uploader->store(1, [
+            'error' => UPLOAD_ERR_INI_SIZE,
+            'size' => 0,
+            'tmp_name' => '',
+            'name' => 'huge.png',
+        ]);
+    }
+
+    public function testMapsMissingFileUploadError(): void
+    {
+        $this->assertSame(
+            'Please choose a file to upload.',
+            PaymentProofUploader::messageForUploadError(UPLOAD_ERR_NO_FILE)
+        );
+    }
+
     public function testRejectsDisallowedMimeType(): void
     {
         $settings = new TestSettingsRepository(maxBytes: 5 * 1024 * 1024, allowedMime: ['image/png']);
@@ -48,6 +71,7 @@ final class PaymentProofUploaderTest extends TestCase
         file_put_contents($tmp, '%PDF-1.4');
 
         $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('File type is not allowed.');
         try {
             $uploader->store(1, [
                 'error' => UPLOAD_ERR_OK,
