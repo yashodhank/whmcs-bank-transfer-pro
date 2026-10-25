@@ -51,6 +51,8 @@ Lab or legacy installs may run in mutable mode.
 - If production needs module behavior changes, make them here and release a new artifact
 - Overlay pin in `whmcs-prod-new` must reference the intended artifact version/digest (document the pin when consuming; do not edit the host repo from this module repo)
 
+Production rollout on Dokploy (`my.securiace.com`) is documented in [runbooks/dokploy-production-deploy.md](runbooks/dokploy-production-deploy.md). Lab rsync (`deploy/lab.sh`) is for `whmcs-devbox` only.
+
 ## Release check
 
 Before cutting or consuming a production bundle, verify:
