@@ -35,6 +35,12 @@ Automatable:
 - for immutable installs, ship `modules/gateways/banktransferpro.php`
 - for mutable installs, verify `modules/gateways` and addon storage are writable
 
+Securiace production (Dokploy / my.securiace.com):
+- do NOT rsync this bundle onto the live container as the release path
+- pin this artifact in securiace-dev/whmcs-prod-new, rebuild the image,
+  update securiace-whmcs-prod image.lock, then redeploy via Dokploy
+- see docs/runbooks/dokploy-production-deploy.md in the source repo
+
 Still operator/admin action:
 - set environment values such as `WHMCS_MUTABLE_APP` and `BTP_PROOFS_DIR`
 - run `composer install` when the host policy requires root Composer autoload refresh
