@@ -49,9 +49,9 @@ Lab or legacy installs may run in mutable mode.
 - Avoid copying custom gateway variants into the host repo
 - Prefer env wiring, volume mounts, and standard WHMCS activation steps
 - If production needs module behavior changes, make them here and release a new artifact
-- Overlay pin in `whmcs-prod-new` must reference the intended artifact version/digest (document the pin when consuming; do not edit the host repo from this module repo)
+- Overlay pin in `whmcs-prod-new` is the catalog id's `SYNC_<ID>_SHA` (set by `scripts/sync-overlay-package.sh <id>`). Document that commit when consuming. Do not edit the host repo from this module repo.
 
-Production rollout on Dokploy (`my.securiace.com`) is documented in [runbooks/dokploy-production-deploy.md](runbooks/dokploy-production-deploy.md). Lab rsync (`deploy/lab.sh`) is for `whmcs-devbox` only.
+Production rollout on Dokploy (`my.securiace.com`) is documented in [runbooks/dokploy-production-deploy.md](runbooks/dokploy-production-deploy.md). Merging this repo does not deploy. Lab rsync (`deploy/lab.sh`) is for `whmcs-devbox` only.
 
 ## Release check
 
@@ -59,7 +59,7 @@ Before cutting or consuming a production bundle, verify:
 
 1. Full tree is present: `modules/addons/banktransferpro/` **and** `modules/gateways/banktransferpro.php`
 2. `BTP_INSTALL_MODE=immutable ./scripts/validate-install.sh <WHMCS_ROOT>` must pass (requires `InvoiceCurrencyResolver`, `ModuleFingerprint` / `invoice_currency_via_client`, addon version `>= 1.1.3`, and no banned `GatewayRenderer` `tblinvoices.currency` pattern)
-3. Overlay pin in `whmcs-prod-new` must reference this artifact before platform rebuild/consume
+3. The `whmcs-prod-new` overlay pin (`SYNC_<ID>_SHA`) must reference this commit before the `release-identity` image is consumed on Dokploy. See the Dokploy runbook.
 4. Smoke: unpaid invoice with `banktransferpro` → `viewinvoice` shows bank details, not WHMCS Oops
 5. Immutable mode is documented and supported by the shipped code
 6. Proof storage is configurable with `BTP_PROOFS_DIR`
