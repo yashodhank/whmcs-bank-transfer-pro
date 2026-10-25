@@ -37,9 +37,10 @@ Automatable:
 
 Securiace production (Dokploy / my.securiace.com):
 - do NOT rsync this bundle onto the live container as the release path
-- pin this artifact in securiace-dev/whmcs-prod-new, rebuild the image,
-  update securiace-whmcs-prod image.lock, then redeploy via Dokploy
-- see docs/runbooks/dokploy-production-deploy.md in the source repo
+- vendor the pinned commit into securiace-dev/whmcs-prod-new overlays
+  (scripts/sync-overlay-package.sh <id> with SYNC_<ID>_SHA), then follow
+  docs/runbooks/dokploy-production-deploy.md
+- merging this repo does not deploy
 
 Still operator/admin action:
 - set environment values such as `WHMCS_MUTABLE_APP` and `BTP_PROOFS_DIR`
