@@ -22,7 +22,7 @@ final class GatewayActivator
         }
 
         $this->saveSetting($slug, 'name', 'Bank Transfer Pro');
-        $this->saveSetting($slug, 'type', Gateway::GATEWAY_BANK);
+        $this->ensureManualGatewayType($slug);
         $this->saveSetting($slug, 'visible', 'on');
         Capsule::table('tblpaymentgateways')
             ->where('gateway', $slug)
@@ -44,7 +44,7 @@ final class GatewayActivator
         $currencyId = $this->resolveCurrencyId($currencyCode);
 
         $this->saveSetting($slug, 'name', $displayName);
-        $this->saveSetting($slug, 'type', Gateway::GATEWAY_BANK);
+        $this->ensureManualGatewayType($slug);
         $this->saveSetting($slug, 'visible', 'on');
 
         if ($currencyId !== null) {
@@ -55,11 +55,30 @@ final class GatewayActivator
     public function updateSettings(string $slug, string $displayName, string $currencyCode): void
     {
         $this->saveSetting($slug, 'name', $displayName);
+        $this->ensureManualGatewayType($slug);
 
         $currencyId = $this->resolveCurrencyId($currencyCode);
         if ($currencyId !== null) {
             $this->saveSetting($slug, 'convertto', (string) $currencyId);
         }
+    }
+
+    /**
+     * Persist the WHMCS manual/third-party gateway type (Invoices).
+     * Instructions-only BTP must not stay as Bank/CC or cron capture will fire.
+     */
+    public function ensureManualGatewayType(string $slug): void
+    {
+        $this->saveSetting($slug, 'type', self::manualGatewayType());
+    }
+
+    public static function manualGatewayType(): string
+    {
+        if (defined(Gateway::class . '::GATEWAY_THIRD_PARTY')) {
+            return (string) Gateway::GATEWAY_THIRD_PARTY;
+        }
+
+        return 'Invoices';
     }
 
     public function deactivate(string $slug, ?string $fallbackGateway = null): void

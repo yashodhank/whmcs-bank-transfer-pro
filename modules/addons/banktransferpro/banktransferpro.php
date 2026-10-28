@@ -8,8 +8,9 @@ if (! defined('WHMCS')) {
 
 use BankTransferPro\Admin\DashboardController;
 use BankTransferPro\Bootstrap;
-use BankTransferPro\Gateway\GatewayPathResolver;
 use BankTransferPro\Client\UploadController;
+use BankTransferPro\Gateway\CaptureAttemptRepair;
+use BankTransferPro\Gateway\GatewayPathResolver;
 use BankTransferPro\Migration\MigrationRunner;
 use BankTransferPro\Migration\WhmcsCapsuleExecutor;
 use BankTransferPro\Repository\SettingsRepository;
@@ -23,7 +24,7 @@ function banktransferpro_config(): array
     return [
         'name' => 'Bank Transfer Pro',
         'description' => 'Multi-currency bank transfer gateways with auto-generated payment modules, invoice bank details, and client payment proof upload.',
-        'version' => '1.2.3',
+        'version' => '1.2.4',
         'author' => 'Securiace Technologies',
         'language' => 'english',
         'fields' => [],
@@ -44,6 +45,17 @@ function banktransferpro_activate(): array
         }
 
         (new SettingsRepository())->seedDefaults();
+
+        try {
+            (new CaptureAttemptRepair())->run();
+        } catch (Throwable $repairException) {
+            if (function_exists('logActivity')) {
+                logActivity(
+                    'Bank Transfer Pro: capture attempt repair on activate failed: '
+                    . $repairException->getMessage()
+                );
+            }
+        }
 
         if (RuntimeEnvironment::usesStaticGatewayMode() && ! is_file((new GatewayPathResolver())->gatewayFilePath('banktransferpro'))) {
             return [

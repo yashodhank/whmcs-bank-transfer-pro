@@ -7,7 +7,7 @@ if (! defined('WHMCS')) {
 }
 
 if (! defined('BTP_ADDON_ASSET_VERSION')) {
-    define('BTP_ADDON_ASSET_VERSION', '1.2.3');
+    define('BTP_ADDON_ASSET_VERSION', '1.2.4');
 }
 
 require_once __DIR__ . '/lib/Bootstrap.php';
@@ -15,6 +15,7 @@ require_once __DIR__ . '/lib/Bootstrap.php';
 use BankTransferPro\Bootstrap;
 use BankTransferPro\Client\ProofPanel;
 use BankTransferPro\Email\InvoiceEmailRenderer;
+use BankTransferPro\Gateway\CaptureAttemptRepair;
 use BankTransferPro\Packs\InstructionPackEngine;
 use BankTransferPro\Packs\PayerContext;
 use BankTransferPro\Repository\BankRepository;
@@ -43,6 +44,21 @@ function btp_client_stylesheet_link_tag(): string
 
     return '<link rel="stylesheet" href="' . htmlspecialchars($href, ENT_QUOTES, 'UTF-8') . '" />' . "\n";
 }
+
+/**
+ * Before daily automation (including ProcessCreditCardPayments): keep BTP gateways
+ * as Invoices and one-shot-clean false "No Pay Method Available" history rows.
+ */
+add_hook('PreCronJob', 1, static function (): void {
+    try {
+        Bootstrap::init();
+        (new CaptureAttemptRepair())->run();
+    } catch (Throwable $exception) {
+        if (function_exists('logActivity')) {
+            logActivity('Bank Transfer Pro: capture attempt repair failed: ' . $exception->getMessage());
+        }
+    }
+});
 
 add_hook('AdminAreaHeadOutput', 1, static function (array $vars = []): string {
     $filename = (string) ($vars['filename'] ?? '');

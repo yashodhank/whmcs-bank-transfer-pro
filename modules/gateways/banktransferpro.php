@@ -16,7 +16,8 @@ function banktransferpro_MetaData(): array
     return [
         'DisplayName' => 'Bank Transfer Pro',
         'APIVersion' => '1.1',
-        'gatewayType' => 'Bank',
+        // Instructions-only (_link). Do not set gatewayType Bank: that puts the
+        // gateway in WHMCS's merchant capture set (ProcessCreditCardPayments).
         'VisibleDefault' => true,
     ];
 }
